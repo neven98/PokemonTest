@@ -1,0 +1,139 @@
+[gd_scene load_steps=3 format=3 uid="uid://bbk050hosk8wk"]
+
+[ext_resource type="Script" uid="uid://drq7il2uvrto1" path="res://src/main/main_menu.gd" id="1_cfyvu"]
+[ext_resource type="Texture2D" uid="uid://bcy4a167pah0a" path="res://Resource/texture/ash-pikachu-adventure-pokemon-desktop-wallpaper-4k.jpg" id="1_jdw3u"]
+
+[node name="MainMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_cfyvu")
+
+[node name="TextureRect" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_jdw3u")
+expand_mode = 2
+
+[node name="Label" type="Label" parent="TextureRect"]
+layout_mode = 0
+offset_left = 682.0
+offset_top = 65.0
+offset_right = 1056.0
+offset_bottom = 139.0
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 54
+text = "POKEMON API"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TextureRect"]
+layout_mode = 0
+offset_left = 747.0
+offset_top = 172.0
+offset_right = 950.0
+offset_bottom = 510.0
+
+[node name="StartGame" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "START GAME"
+flat = true
+
+[node name="Option" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "OPTION"
+flat = true
+
+[node name="Update" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "UPDATE"
+flat = true
+
+[node name="Exit" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "EXIT"
+flat = true
+
+[node name="ImportDb" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "ImportDB"
+flat = true
+
+[node name="Test" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "TEST DB"
+flat = true
+
+[node name="Pokedex" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "Pokedex"
+flat = true
+
+[node name="DlInfo" type="Label" parent="TextureRect"]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -38.5
+offset_top = -82.0
+offset_right = 38.5
+offset_bottom = -37.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 18
+theme_override_font_sizes/font_size = 32
+text = "INFO"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OptionButton" type="OptionButton" parent="TextureRect"]
+layout_mode = 0
+offset_right = 32.0
+offset_bottom = 20.0
+
+[connection signal="pressed" from="TextureRect/VBoxContainer/Update" to="." method="_on_update_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/Exit" to="." method="_on_exit_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/ImportDb" to="." method="_on_import_db_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/Test" to="." method="_on_test_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/Pokedex" to="." method="_on_pokedex_pressed"]

@@ -1,0 +1,38 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="pokemon_api"
+run/main_scene="uid://bbk050hosk8wk"
+config/features=PackedStringArray("4.5", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+PokeCacheSync="*res://src/back/api_request/PokeCacheSync.gd"
+PokeDb="*res://src/sql/PokeDB.gd"
+PokeData="*res://src/back/PokeModelRegistry.gd"
+PokeImport="*res://src/back/PokeImport.gd"
+PokeRepo="*res://src/back/PokeRepo.gd"
+PokeConfig="*res://src/config/PokeConfig.gd"
+PokeGen="*res://src/model/pokemon/PokemonGenerator.gd"
+PokeDex="*res://src/model/pokedex/PokeDex.gd"
+PokeRules="*res://src/data/PokeRules.gd"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot-sqlite/plugin.cfg")
+
+[file_customization]
+
+folder_colors={
+"res://src/": "yellow"
+}

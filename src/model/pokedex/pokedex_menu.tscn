@@ -1,0 +1,107 @@
+[gd_scene load_steps=2 format=3 uid="uid://byp2rf2iuoc03"]
+
+[ext_resource type="Script" uid="uid://bf3sypmisxjq2" path="res://src/model/pokedex/pokedex_menu.gd" id="1_5wt0s"]
+
+[node name="PokedexMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_5wt0s")
+
+[node name="Fade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.24840015, 0.24840018, 0.24840015, 1)
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -576.0
+offset_right = 576.0
+offset_bottom = 31.0
+grow_horizontal = 2
+size_flags_vertical = 0
+alignment = 1
+
+[node name="Search" type="LineEdit" parent="TopBar"]
+layout_mode = 2
+alignment = 1
+max_length = 15
+
+[node name="ModeOption" type="OptionButton" parent="TopBar"]
+layout_mode = 2
+selected = 0
+item_count = 3
+popup/item_0/text = "National"
+popup/item_0/id = 0
+popup/item_1/text = "Regional"
+popup/item_1/id = 1
+popup/item_2/text = "ALL"
+popup/item_2/id = 2
+
+[node name="RegionOption" type="OptionButton" parent="TopBar"]
+layout_mode = 2
+allow_reselect = true
+
+[node name="LangOption" type="OptionButton" parent="TopBar"]
+visible = false
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="TopBar"]
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Return"
+
+[node name="List" type="ItemList" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 26.0
+offset_top = 40.0
+offset_right = -29.0
+offset_bottom = -37.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="BottomBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -576.0
+offset_top = -23.0
+offset_right = 576.0
+grow_horizontal = 2
+grow_vertical = 0
+size_flags_vertical = 8
+alignment = 1
+
+[node name="Prev" type="Button" parent="BottomBar"]
+layout_mode = 2
+text = "Before"
+
+[node name="PageLabel" type="Label" parent="BottomBar"]
+layout_mode = 2
+
+[node name="Next" type="Button" parent="BottomBar"]
+layout_mode = 2
+text = "Next"
+
+[node name="Info" type="Label" parent="."]
+layout_mode = 0
+offset_right = 376.0
+offset_bottom = 23.0
+
+[connection signal="item_selected" from="TopBar/RegionOption" to="." method="_on_region_option_item_selected"]
