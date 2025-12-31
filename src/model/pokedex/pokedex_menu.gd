@@ -13,9 +13,9 @@ extends Control
 
 const PAGE_SIZE := 50
 
-enum DexMode { REGION, ALL }
+enum DexMode { NATIONAL, REGION, ALL }
 
-var _mode: int = DexMode.ALL
+var _mode: int = DexMode.NATIONAL
 var _region_id: int = 0
 var _page: int = 0
 var _total: int = 0
@@ -29,26 +29,30 @@ func _ready() -> void:
 	_reload()
 	_apply_mode_ui()
 
-func _on_region_option_item_selected(index: int) -> void:
-	_mode = DexMode.ALL if index == 0 else DexMode.REGION
-	_apply_mode_ui()
-	if _mode == DexMode.REGION:
-		_fill_region_option_with_pokedex() # <- refill ici (pas avant)
-	_reload()
+func _on_region_option_item_selected(_index: int) -> void:
+        _region_id = opt_region.get_selected_id()
+        _page = 0
+        _reload()
 
 func _fill_region_option_with_pokedex() -> void:
-	opt_region.clear()
-	opt_region.add_item("—", 0)
+        opt_region.clear()
+        opt_region.add_item("National", _get_national_pokedex_id())
 
-	var rows := PokeDb._query("SELECT id, name FROM entities WHERE resource='pokedex' ORDER BY id ASC;")
-	for r in rows:
-		var id := int(r.get("id", 0))
-		var name := str(r.get("name", ""))
-		opt_region.add_item(name.capitalize(), id)
+        var rows := PokeDb._query("SELECT id, name FROM entities WHERE resource='pokedex' ORDER BY id ASC;")
+        for r in rows:
+                var id := int(r.get("id", 0))
+                var name := str(r.get("name", ""))
+                if name == "national":
+                        continue
+                opt_region.add_item(name.capitalize(), id)
+
+        if opt_region.item_count > 0:
+                opt_region.select(0)
+                _region_id = opt_region.get_item_id(0)
 
 func _apply_mode_ui() -> void:
-	var show_region := (_mode == DexMode.REGION)
-	opt_region.visible = show_region
+        var show_region := (_mode == DexMode.REGION)
+        opt_region.visible = show_region
 
 func _setup_ui() -> void:
 	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -56,24 +60,22 @@ func _setup_ui() -> void:
 
 	btn_back.pressed.connect(_on_back)
 
-	opt_mode.clear()
-	opt_mode.add_item("ALL", DexMode.ALL)
-	opt_mode.add_item("REGION", DexMode.REGION)
-	opt_mode.item_selected.connect(func(_idx): 
-		_mode = opt_mode.get_selected_id()
-		_page = 0
-		_reload()
-	)
+        opt_mode.clear()
+        opt_mode.add_item("NATIONAL", DexMode.NATIONAL)
+        opt_mode.add_item("REGION", DexMode.REGION)
+        opt_mode.add_item("ALL", DexMode.ALL)
+        opt_mode.select(_mode)
+        opt_mode.item_selected.connect(func(_idx):
+                _mode = opt_mode.get_selected_id()
+                _page = 0
+                _apply_mode_ui()
+                _reload()
+        )
 
-	# régions
-	_fill_region_option_with_pokedex()
-	opt_region.item_selected.connect(func(_idx):
-		_region_id = opt_region.get_selected_id()
-		_page = 0
-		_reload()
-	)
+        # régions
+        _fill_region_option_with_pokedex()
 
-	edit_search.text_submitted.connect(_on_search_submit)
+        edit_search.text_submitted.connect(_on_search_submit)
 
 	btn_prev.pressed.connect(func():
 		if _page > 0:
@@ -118,10 +120,13 @@ func _reload() -> void:
 	_reload_page_only()
 
 func _count_total() -> int:
-	match _mode:
-		DexMode.ALL:
-			var rows := PokeDb._query("SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_species';")
-			return int((rows[0] as Dictionary).get("c", 0)) if rows.size() > 0 else 0
+        match _mode:
+                DexMode.NATIONAL:
+                        return _count_species_in_pokedex(_get_national_pokedex_id())
+
+                DexMode.ALL:
+                        var rows := PokeDb._query("SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_species';")
+                        return int((rows[0] as Dictionary).get("c", 0)) if rows.size() > 0 else 0
 
 		DexMode.REGION:
 			var pid := _get_region_pokedex_id(_region_id)
@@ -142,12 +147,15 @@ func _reload_page_only() -> void:
 	lbl_info.text = "mode=%s page=%d total=%d" % [_mode, _page, _total]
 
 func _fetch_page() -> Array[Dictionary]:
-	var offset := _page * PAGE_SIZE
+        var offset := _page * PAGE_SIZE
 
-	match _mode:
-		DexMode.ALL:
-			# on liste pokemon_species id + name depuis entities
-			return PokeDb.list_entities("pokemon_species", PAGE_SIZE, offset)
+        match _mode:
+                DexMode.NATIONAL:
+                        return _fetch_species_in_pokedex(_get_national_pokedex_id(), PAGE_SIZE, offset)
+
+                DexMode.ALL:
+                        # on liste pokemon_species id + name depuis entities
+                        return PokeDb.list_entities("pokemon_species", PAGE_SIZE, offset)
 
 		DexMode.REGION:
 			return _fetch_species_in_pokedex(_get_region_pokedex_id(_region_id), PAGE_SIZE, offset)
@@ -155,13 +163,14 @@ func _fetch_page() -> Array[Dictionary]:
 	return []
 
 func _render_list() -> void:
-	list.clear()
-	for row in _page_rows:
-		var id := int(row.get("id", 0))
-		var name := str(row.get("name", ""))
+        list.clear()
+        for row in _page_rows:
+                var id := int(row.get("id", 0))
+                var name := str(row.get("name", ""))
+                var num := int(row.get("num", id))
 
-		# si tu veux afficher un "numéro pokedex", tu peux le format ici
-		list.add_item("#%04d  %s" % [id, name])
+                # si tu veux afficher un "numéro pokedex", tu peux le format ici
+                list.add_item("#%04d  %s" % [num, name])
 
 func _on_search_submit(text: String) -> void:
 	var q := text.strip_edges()
@@ -200,10 +209,13 @@ func _jump_to_species(species_id: int) -> void:
 		list.ensure_current_is_visible()
 
 func _index_of_species_in_current_mode(species_id: int) -> int:
-	match _mode:
-		DexMode.ALL:
-			# index = position triée par id
-			var rows := PokeDb._query_bind(
+        match _mode:
+                DexMode.NATIONAL:
+                        return _index_in_pokedex(_get_national_pokedex_id(), species_id)
+
+                DexMode.ALL:
+                        # index = position triée par id
+                        var rows := PokeDb._query_bind(
 				"SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_species' AND id < ?;",
 				[species_id]
 			)
@@ -285,21 +297,28 @@ func _get_national_pokedex_id() -> int:
 	return 1
 
 func _get_region_pokedex_id(region_id: int) -> int:
-	# mapping simple (à améliorer) : on cherche un pokedex dont le nom contient celui de la région
-	# ex: "kanto" -> "kanto"
-	var reg := PokeDb.get_entity("region", region_id)
-	var rname := str(reg.get("name",""))
-	if rname == "":
-		return _get_national_pokedex_id()
+        # On permet deux usages :
+        # - region_id est déjà un pokedex_id (sélection dans la liste)
+        # - fallback: on tente une correspondance par nom de région
 
-	var rows := PokeDb._query_bind(
-		"SELECT id FROM entities WHERE resource='pokedex' AND name LIKE ? ORDER BY id ASC LIMIT 1;",
-		["%" + rname + "%"]
-	)
-	if rows.size() > 0:
-		return int((rows[0] as Dictionary).get("id", 0))
+        var poke := PokeDb.get_entity("pokedex", region_id)
+        if not poke.is_empty():
+                return region_id
 
-	return _get_national_pokedex_id()
+        # mapping simple (legacy) : on cherche un pokedex dont le nom contient celui de la région
+        var reg := PokeDb.get_entity("region", region_id)
+        var rname := str(reg.get("name",""))
+        if rname == "":
+                return _get_national_pokedex_id()
+
+        var rows := PokeDb._query_bind(
+                "SELECT id FROM entities WHERE resource='pokedex' AND name LIKE ? ORDER BY id ASC LIMIT 1;",
+                ["%" + rname + "%"]
+        )
+        if rows.size() > 0:
+                return int((rows[0] as Dictionary).get("id", 0))
+
+        return _get_national_pokedex_id()
 
 func _count_species_in_pokedex(pokedex_id: int) -> int:
 	if pokedex_id <= 0:
