@@ -234,6 +234,11 @@ func upsert_pokedex_number(obj: Dictionary) -> Dictionary:
 	)
 	return {"inserted": 1, "updated": 0, "skipped": 0, "errors": 0}
 
+func pokedex_number_count(pokedex_id: int) -> int:
+	var rows := _query_bind("SELECT COUNT(*) AS c FROM dex_pokedex_number WHERE pokedex_id=?;", [pokedex_id])
+	if rows.size() == 0:
+		return 0
+	return int((rows[0] as Dictionary).get("c", 0))
 
 func _get_schema_version() -> int:
 	var rows := _query_bind("SELECT value FROM meta WHERE key=? LIMIT 1;", ["schema_version"])
