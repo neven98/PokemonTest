@@ -105,9 +105,8 @@ func _pretty_mega_name(form: Dictionary, species_id: int) -> String:
 		suffix = "X"
 	elif s.find(" y") != -1 or s == "y":
 		suffix = "Y"
-	# si tu veux gérer d'autres cas plus tard :
-	# elif s.find(" z") != -1 or s == "z":
-	#     suffix = "Z"
+	elif s.find(" z") != -1 or s == "z":
+		suffix = "Z"
 
 	if suffix == "":
 		return "Mega %s" % base
