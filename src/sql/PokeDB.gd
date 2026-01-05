@@ -41,14 +41,13 @@ func _open_db() -> bool:
 
 	_db = SQLite.new()
 	_db.path = db_path
-	_db.verbosity_level = 2  # mets 0 quand tout est stable
+	_db.verbosity_level = 0  # mets 0 quand tout est stable
 
 	var ok: bool = _db.open_db()
 	if not ok:
 		push_error("[PokeDb] open_db() a échoué: %s" % String(_db.error_message))
 		return false
 
-	print("[PokeDb] DB ouverte:", ProjectSettings.globalize_path(db_path))
 	return true
 
 func _exec(sql: String) -> bool:
@@ -203,7 +202,6 @@ func _apply_migrations() -> void:
 		_exec("CREATE INDEX IF NOT EXISTS idx_dex_pm_move ON dex_pokemon_move(move_id);")
 		_set_schema_version(3)
 		v = 3
-		# --- v4 : dex_pokedex_number (si ajouté après coup / DB déjà en v3) ---
 	if v < 4:
 		_exec("""
 		CREATE TABLE IF NOT EXISTS dex_pokedex_number(
@@ -218,7 +216,6 @@ func _apply_migrations() -> void:
 
 		_set_schema_version(4)
 		v = 4
-	print("[PokeDb] schema_version=", v, " import_state=", _table_exists("import_state"))
 
 func upsert_pokedex_number(obj: Dictionary) -> Dictionary:
 	var pokedex_id := _i(obj.get("pokedex_id", null))
@@ -810,3 +807,76 @@ func pokemon_moves_upto_level_methods(pokemon_id: int, version_group_id: int, me
 		+ "ORDER BY level ASC, move_id ASC;"
 
 	return _query_bind(sql, binds)
+
+# ---------------------------------------------------
+# Fast import wrapper (PRAGMA + transaction + restore)
+# ---------------------------------------------------
+@export var fast_import_enabled := true
+@export var fast_import_use_memory_journal := true # plus rapide, un peu plus risqué
+@export var fast_import_sync_off := true           # plus rapide, plus risqué
+
+func run_fast_import(work: Callable) -> Variant:
+	if _db == null:
+		push_error("[PokeDb] run_fast_import: DB not open")
+		return null
+
+	# Si tu veux pouvoir désactiver en 1 clic
+	if not fast_import_enabled:
+		return work.call()
+
+	# Sauvegarde quelques PRAGMAs pour restaurer après
+	var prev_journal := _pragma_get_str("journal_mode", "WAL")
+	var prev_sync := _pragma_get_str("synchronous", "NORMAL")
+	var prev_temp := _pragma_get_str("temp_store", "DEFAULT")
+
+	# Active mode rapide
+	if fast_import_use_memory_journal:
+		_exec("PRAGMA journal_mode=MEMORY;") # très rapide
+	else:
+		_exec("PRAGMA journal_mode=WAL;")    # safe-ish
+
+	if fast_import_sync_off:
+		_exec("PRAGMA synchronous=OFF;")     # très rapide
+	else:
+		_exec("PRAGMA synchronous=NORMAL;")
+
+	_exec("PRAGMA temp_store=MEMORY;")
+
+	# Transaction globale (le plus gros gain)
+	_exec("BEGIN IMMEDIATE;")
+
+	var result: Variant = await work.call()
+	var ok := true
+
+
+	if typeof(result) == TYPE_BOOL and result == false:
+		ok = false
+	elif typeof(result) == TYPE_DICTIONARY and (result as Dictionary).get("ok", true) == false:
+		ok = false
+
+	if ok:
+		_exec("COMMIT;")
+	else:
+		_exec("ROLLBACK;")
+
+	# Restore settings
+	_exec("PRAGMA journal_mode=%s;" % prev_journal)
+	_exec("PRAGMA synchronous=%s;" % prev_sync)
+	_exec("PRAGMA temp_store=%s;" % prev_temp)
+
+	return result
+
+
+func _pragma_get_str(name: String, default_value: String) -> String:
+	var rows := _query("PRAGMA %s;" % name)
+	if rows.size() == 0:
+		return default_value
+
+	var r0 :Variant= rows[0]
+	# Suivant plugin SQLite, ça peut être un dict ou autre
+	if typeof(r0) == TYPE_DICTIONARY:
+		var d := r0 as Dictionary
+		# on prend la première value
+		if d.size() > 0:
+			return str(d.values()[0])
+	return default_value

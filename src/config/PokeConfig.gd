@@ -34,9 +34,12 @@ func _load_or_compute_default() -> void:
 	PokeDb.meta_set("default_version_group_id", str(default_version_group_id))
 
 func _compute_latest_version_group_id() -> int:
-	# Il faut que "version_group" soit importé dans entities
-	var rows := PokeDb._query("SELECT MAX(id) AS m FROM entities WHERE resource='version_group';")
-	if rows.size() == 0:
+	var rows := PokeDb._query(
+		"SELECT COALESCE(MAX(id), 0) AS m "
+		+ "FROM entities WHERE resource='version_group';"
+	)
+	if rows.is_empty():
 		return 0
-	var m := int((rows[0] as Dictionary).get("m", 0))
-	return m
+
+	var v :Variant= (rows[0] as Dictionary).get("m")
+	return 0 if v == null else int(v)

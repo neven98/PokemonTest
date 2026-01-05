@@ -8,10 +8,6 @@ var _vg_loading := false
 var _vg_ids: Array[int] = []
 
 func _ready() -> void:
-	if not PokeDb.import_progress.is_connected(_on_import_progress):
-		PokeDb.import_progress.connect(_on_import_progress)
-	if not PokeDb.import_finished.is_connected(_on_import_finished):
-		PokeDb.import_finished.connect(_on_import_finished)
 	if not PokeCacheSync.offline_progress.is_connected(_on_update_progress):
 		PokeCacheSync.offline_progress.connect(_on_update_progress)
 	if not PokeCacheSync.offline_finished.is_connected(_on_update_finished):
@@ -58,38 +54,34 @@ func _on_offline_finished(status: String, calls_used: int, remaining: int) -> vo
 
 func _on_import_db_pressed() -> void:
 	lbl.visible = true
-	PokeImport.import_progress.connect(func(msg, d, t): lbl.text = "%s %d/%d" % [msg, d, t], CONNECT_ONE_SHOT)
-	PokeImport.import_finished.connect(func(status, ins, upd, skp, err):
-		lbl.text = "Import: %s | +%d ~%d skip=%d err=%d" % [status, ins, upd, skp, err]
-	, CONNECT_ONE_SHOT)
+	lbl.text = "Import: préparation…"
 
-	await PokeImport.import_step(5000) # batch
+	# IMPORTANT: pas de ONE_SHOT sinon tu ne vois qu'un seul update.
+	if not PokeImport.import_progress.is_connected(_on_import_progress_short):
+		PokeImport.import_progress.connect(_on_import_progress_short)
+	if not PokeImport.import_finished.is_connected(_on_import_finished_short):
+		PokeImport.import_finished.connect(_on_import_finished_short)
 
-func _on_import_progress(msg: String, done: int, total: int, ins: int, upd: int, skp: int, err: int) -> void:
-	lbl.text = "%s %d/%d | +%d ~%d =%d | err=%d" % [msg, done, total, ins, upd, skp, err]
+	PokeImport.rebuild_all_indexes()
+	await PokeImport.import_step(0)
 
-func _on_import_finished(status: String, ins: int, upd: int, skp: int, err: int, total: int) -> void:
-	lbl.text = "Import: %s total=%d | +%d ~%d =%d | err=%d" % [status, total, ins, upd, skp, err]
+var _import_start_ms := 0
 
+func _on_import_progress_short(msg: String, done: int, total: int, ins: int = 0, upd: int = 0, skp: int = 0, err: int = 0) -> void:
+	var pct := 0.0
+	if total > 0:
+		pct = (float(done) / float(total)) * 100.0
+	lbl.text = "%s\n%d/%d (%.1f%%) | +%d ~%d =%d | err=%d" % [msg, done, total, pct, ins, upd, skp, err]
+
+
+func _on_import_finished_short(status: String, ins: int, upd: int, skp: int, err: int, total: int = -1) -> void:
+	var extra := ""
+	if total >= 0:
+		extra = " total=%d" % total
+	lbl.text = "Import: %s | +%d ~%d =%d | err=%d%s" % [status, ins, upd, skp, err, extra]
 
 func _on_test_pressed() -> void:
-	var vg := PokeConfig.get_version_group_id()
-	var p := PokeGen.make(1, 5, vg) # bulbasaur
-
-	print("Pokemon:", p.name(), "lvl", p.level, "vg chosen", p.version_group_id, "learnset vg", p.learnset_vg_id)
-	print("Types ids:", p.type_ids())
-	print("Types names:", [PokeRepo.get_entity_name("type", p.type_ids()[0]), PokeRepo.get_entity_name("type", p.type_ids()[1])])
-
-	print("Moves ids:", p.move_ids)
-
-	var move_names: Array[String] = []
-	for mid in p.move_ids:
-		if mid <= 0:
-			move_names.append("")
-		else:
-			move_names.append(MoveModel.new(mid).name())
-	print("Moves:", move_names)
-
+	print(PokeDb._query("SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_form';"))
 
 func _on_update_progress(msg: String, calls_used: int, remaining: int) -> void:
 	lbl.text = "%s\ncalls=%d | restants=%d" % [msg, calls_used, remaining]

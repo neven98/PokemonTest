@@ -10,46 +10,174 @@ extends Control
 @onready var btn_next: Button = $BottomBar/Next
 @onready var lbl_page: Label = $BottomBar/PageLabel
 @onready var lbl_info: Label = $Info
+@onready var chk_mega: CheckBox = $TopBar/MegaCheck
 
 const PAGE_SIZE := 50
+const REGION_SLICES := [
+	{"label":"Kanto",  "start":1,   "end":151},
+	{"label":"Johto",  "start":152, "end":251},
+	{"label":"Hoenn",  "start":252, "end":386},
+	{"label":"Sinnoh", "start":387, "end":493},
+	{"label":"Unova",  "start":494, "end":649},
+	{"label":"Kalos",  "start":650, "end":721},
+	{"label":"Alola",  "start":722, "end":809},
+	{"label":"Galar",  "start":810, "end":898},
+	{"label":"Paldea", "start":899, "end":1025},
+]
 
-enum DexMode { REGION, ALL }
+enum DexMode { ALL, REGION }
 
+var _entries: Array[Dictionary] = []
+var _region_index: int = 0
+var _include_mega := false
 var _mode: int = DexMode.REGION
-var _region_id: int = 0
 var _page: int = 0
 var _total: int = 0
-
+var _mega_map: Dictionary = {}
 # cache de la page courante : [{id, name}]
 var _page_rows: Array[Dictionary] = []
 
 func _ready() -> void:
+	chk_mega.toggled.connect(func(v: bool):
+		_include_mega = v
+		_page = 0
+		_reload()
+	)
 	_setup_ui()
 	await _fade_in()
+	_rebuild_mega_map()
 	_reload()
 	_apply_mode_ui()
 
 func _on_region_option_item_selected(_index: int) -> void:
-	_region_id = opt_region.get_selected_id()
+	_region_index = opt_region.get_selected_id()
 	_page = 0
 	_reload()
 
-func _fill_region_option_with_pokedex() -> void:
+func _id_from_url(url: String) -> int:
+	var u := url.rstrip("/")
+	var parts := u.split("/")
+	if parts.is_empty():
+		return 0
+	var last := parts[parts.size() - 1]
+	return int(last) if last.is_valid_int() else 0
+
+func _species_id_from_pokemon_id(pokemon_id: int) -> int:
+	var p := PokeDb.get_entity("pokemon", pokemon_id)
+	if p.is_empty():
+		return 0
+
+	# cas "plat"
+	if p.has("pokemon_species_id"):
+		return int(p.get("pokemon_species_id", 0))
+	if p.has("species_id"):
+		return int(p.get("species_id", 0))
+
+	# cas PokeAPI: {"species":{"url":...}}
+	if p.has("species") and typeof(p["species"]) == TYPE_DICTIONARY:
+		var s := p["species"] as Dictionary
+		if s.has("url"):
+			return _id_from_url(str(s["url"]))
+		if s.has("id"):
+			return int(s.get("id", 0))
+
+	return 0
+
+func _pretty_mega_name(form: Dictionary, species_id: int) -> String:
+	var base := str(PokeDb.get_entity("pokemon_species", species_id).get("name", "")).capitalize()
+
+	# On essaye de récupérer une info de variante (X/Y) depuis form_name,
+	# sinon on fallback sur form.name
+	var raw := str(form.get("form_name", "")).strip_edges()
+	if raw == "":
+		raw = str(form.get("name", "")).strip_edges()
+
+	var s := raw.to_lower()
+
+	# Nettoyage : virer tout ce qui est "mega"
+	s = s.replace("mega", "").strip_edges()
+	s = s.replace("-", " ").strip_edges()
+
+	# Déduire suffix (X/Y) si présent
+	var suffix := ""
+	# cas les plus courants
+	if s.find(" x") != -1 or s == "x":
+		suffix = "X"
+	elif s.find(" y") != -1 or s == "y":
+		suffix = "Y"
+	# si tu veux gérer d'autres cas plus tard :
+	# elif s.find(" z") != -1 or s == "z":
+	#     suffix = "Z"
+
+	if suffix == "":
+		return "Mega %s" % base
+	return "Mega %s %s" % [base, suffix]   # => Mega X Charizard
+
+
+func _rebuild_mega_map() -> void:
+	_mega_map.clear()
+
+	# Si pas de pokemon_form, on désactive proprement
+	var chk := PokeDb._query("SELECT 1 AS x FROM entities WHERE resource='pokemon_form' LIMIT 1;")
+	if chk.is_empty():
+		chk_mega.disabled = true
+		chk_mega.button_pressed = false
+		_include_mega = false
+		return
+
+	chk_mega.disabled = false
+
+	# candidats : name LIKE '%mega%'
+	var ids_rows := PokeDb._query_bind(
+		"SELECT id FROM entities WHERE resource='pokemon_form' AND name LIKE ? ORDER BY id ASC;",
+		["%mega%"]
+	)
+
+	for r in ids_rows:
+		var form_id := int((r as Dictionary).get("id", 0))
+		if form_id <= 0:
+			continue
+
+		var form := PokeDb.get_entity("pokemon_form", form_id)
+		if form.is_empty():
+			continue
+		if not bool(form.get("is_mega", false)):
+			continue
+
+		var pid := int(form.get("pokemon_id", 0))
+		if pid <= 0:
+			continue
+
+		var sid := _species_id_from_pokemon_id(pid)
+		if sid <= 0:
+			continue
+
+		var entry := {
+			"kind": "mega",
+			"species_id": sid,
+			"pokemon_id": pid,
+			"form_id": form_id,
+			"name": _pretty_mega_name(form, sid),
+			"num": sid, # on garde l'ordre "après l'espèce"
+		}
+
+		if not _mega_map.has(sid):
+			_mega_map[sid] = []
+		(_mega_map[sid] as Array).append(entry)
+
+	# tri stable (Mega X puis Mega Y)
+	for sid in _mega_map.keys():
+		(_mega_map[sid] as Array).sort_custom(func(a, b):
+			return str(a["name"]) < str(b["name"])
+		)
+
+
+func _fill_region_option_with_slices() -> void:
 	opt_region.clear()
+	for i in range(REGION_SLICES.size()):
+		opt_region.add_item(REGION_SLICES[i]["label"], i) # id = index
 
-	var rows := PokeDb._query("SELECT id, name FROM entities WHERE resource='pokedex' ORDER BY id ASC;")
-	var kanto_index := -1
-	for r in rows:
-		var id := int(r.get("id", 0))
-		var name := str(r.get("name", ""))
-		opt_region.add_item(name.capitalize(), id)
-		if name.to_lower() == "kanto":
-			kanto_index = opt_region.item_count - 1
-
-	if opt_region.item_count > 0:
-		var target := kanto_index if kanto_index >= 0 else 0
-		opt_region.select(target)
-		_region_id = opt_region.get_item_id(target)
+	opt_region.select(_region_index)
 
 func _apply_mode_ui() -> void:
 	var show_region := (_mode == DexMode.REGION)
@@ -62,8 +190,8 @@ func _setup_ui() -> void:
 	btn_back.pressed.connect(_on_back)
 
 	opt_mode.clear()
-	opt_mode.add_item("REGION", DexMode.REGION)
 	opt_mode.add_item("ALL", DexMode.ALL)
+	opt_mode.add_item("REGION", DexMode.REGION)
 	opt_mode.select(_mode)
 	opt_mode.item_selected.connect(func(_idx):
 		_mode = opt_mode.get_selected_id()
@@ -73,7 +201,9 @@ func _setup_ui() -> void:
 	)
 
 	# régions
-	_fill_region_option_with_pokedex()
+	_fill_region_option_with_slices()
+	if not opt_region.item_selected.is_connected(_on_region_option_item_selected):
+		opt_region.item_selected.connect(_on_region_option_item_selected)
 
 	edit_search.text_submitted.connect(_on_search_submit)
 
@@ -99,36 +229,87 @@ func _fill_regions() -> void:
 		opt_region.add_item(str(r.get("name","")), int(r.get("id",0)))
 
 	# par défaut : Kanto si trouvé, sinon 1
-	_region_id = 0
+	_region_index = 0
 	for r in regs:
 		if str(r.get("name","")) == "kanto":
-			_region_id = int(r.get("id", 0))
+			_region_index = int(r.get("id", 0))
 			break
-	if _region_id <= 0 and regs.size() > 0:
-		_region_id = int(regs[0].get("id", 0))
+	if _region_index <= 0 and regs.size() > 0:
+		_region_index = int(regs[0].get("id", 0))
 
 	# sélection UI
 	for i in range(opt_region.item_count):
-		if opt_region.get_item_id(i) == _region_id:
+		if opt_region.get_item_id(i) == _region_index:
 			opt_region.select(i)
 			break
 
 func _reload() -> void:
-	opt_region.visible = (_mode == DexMode.REGION)
+	_apply_mode_ui()
+	_rebuild_entries()
 
 	_total = _count_total()
 	_reload_page_only()
 
+func _rebuild_entries() -> void:
+	_entries.clear()
+
+	var start_id := 1
+	var end_id := 1025
+
+	if _mode == DexMode.REGION:
+		var slice := _current_slice()
+		start_id = int(slice["start"])
+		end_id = int(slice["end"])
+
+	var rows := PokeDb._query_bind(
+		"SELECT id, name FROM entities WHERE resource='pokemon_species' AND id BETWEEN ? AND ? ORDER BY id ASC;",
+		[start_id, end_id]
+	)
+
+	for rr in rows:
+		var sid := int((rr as Dictionary).get("id", 0))
+		var name := str((rr as Dictionary).get("name", "")).capitalize()
+
+		_entries.append({"kind":"species","id":sid,"name":name,"num":sid})
+
+		if _include_mega and _mega_map.has(sid):
+			for m in (_mega_map[sid] as Array):
+				_entries.append(m)
+
 func _count_total() -> int:
-	match _mode:
-		DexMode.ALL:
-			var rows := PokeDb._query("SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_species';")
-			return int((rows[0] as Dictionary).get("c", 0)) if rows.size() > 0 else 0
+	return _entries.size()
 
-		DexMode.REGION:
-			return _count_species_in_pokedex(_region_id)
+func _current_slice() -> Dictionary:
+	if _region_index < 0 or _region_index >= REGION_SLICES.size():
+		return REGION_SLICES[0]
+	return REGION_SLICES[_region_index]
 
-	return 0
+func _count_species_in_slice() -> int:
+	var s := _current_slice()
+	var rows := PokeDb._query_bind(
+		"SELECT COUNT(*) AS c FROM entities WHERE resource='pokemon_species' AND id BETWEEN ? AND ?;",
+		[int(s["start"]), int(s["end"])]
+	)
+	return int((rows[0] as Dictionary).get("c", 0)) if rows.size() > 0 else 0
+
+func _fetch_species_in_slice(limit: int, offset: int) -> Array[Dictionary]:
+	var s := _current_slice()
+	return PokeDb._query_bind(
+		"SELECT id, name FROM entities "
+		+ "WHERE resource='pokemon_species' AND id BETWEEN ? AND ? "
+		+ "ORDER BY id ASC LIMIT ? OFFSET ?;",
+		[int(s["start"]), int(s["end"]), limit, offset]
+	)
+
+func _index_in_slice(species_id: int) -> int:
+	var s := _current_slice()
+	var rows := PokeDb._query_bind(
+		"SELECT COUNT(*) AS c FROM entities "
+		+ "WHERE resource='pokemon_species' AND id BETWEEN ? AND ? AND id < ?;",
+		[int(s["start"]), int(s["end"]), species_id]
+	)
+	return int((rows[0] as Dictionary).get("c", -1)) if rows.size() > 0 else -1
+
 
 func _reload_page_only() -> void:
 	_page_rows = _fetch_page()
@@ -144,16 +325,10 @@ func _reload_page_only() -> void:
 
 func _fetch_page() -> Array[Dictionary]:
 	var offset := _page * PAGE_SIZE
-
-	match _mode:
-		DexMode.ALL:
-			# on liste pokemon_species id + name depuis entities
-			return PokeDb.list_entities("pokemon_species", PAGE_SIZE, offset)
-
-		DexMode.REGION:
-			return _fetch_species_in_pokedex(_region_id, PAGE_SIZE, offset)
-
-	return []
+	var out: Array[Dictionary] = []
+	for i in range(offset, min(offset + PAGE_SIZE, _entries.size())):
+		out.append(_entries[i])
+	return out
 
 func _render_list() -> void:
 	list.clear()
@@ -212,7 +387,7 @@ func _index_of_species_in_current_mode(species_id: int) -> int:
 			return int((rows[0] as Dictionary).get("c", -1)) if rows.size()>0 else -1
 
 		DexMode.REGION:
-			return _index_in_pokedex(_region_id, species_id)
+			return _index_in_slice(species_id)
 
 	return -1
 
@@ -334,9 +509,15 @@ func _index_in_pokedex(pokedex_id: int, species_id: int) -> int:
 func _on_item_activated(index: int) -> void:
 	if index < 0 or index >= _page_rows.size():
 		return
-	var sid := int(_page_rows[index].get("id", 0))
-	lbl_info.text = "Selected species_id=%d" % sid
-	# TODO: ouvrir une fiche Pokémon (sous-menu détail)
+	var row := _page_rows[index]
+	if str(row.get("kind", "")) == "mega":
+		var pid := int(row.get("pokemon_id", 0))
+		lbl_info.text = "Selected MEGA pokemon_id=%d" % pid
+		# TODO: ouvrir la fiche du pokemon_id
+	else:
+		var sid := int(row.get("id", 0))
+		lbl_info.text = "Selected species_id=%d" % sid
+		# TODO: ouvrir la fiche espèce
 
 func _on_back() -> void:
 	await _fade_out()

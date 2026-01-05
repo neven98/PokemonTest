@@ -56,6 +56,10 @@ allow_reselect = true
 visible = false
 layout_mode = 2
 
+[node name="MegaCheck" type="CheckBox" parent="TopBar"]
+layout_mode = 2
+text = "SHOW MEGA"
+
 [node name="BackButton" type="Button" parent="TopBar"]
 layout_mode = 2
 size_flags_horizontal = 8
@@ -103,5 +107,3 @@ text = "Next"
 layout_mode = 0
 offset_right = 376.0
 offset_bottom = 23.0
-
-[connection signal="item_selected" from="TopBar/RegionOption" to="." method="_on_region_option_item_selected"]
