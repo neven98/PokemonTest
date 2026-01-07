@@ -880,3 +880,128 @@ func _pragma_get_str(name: String, default_value: String) -> String:
 		if d.size() > 0:
 			return str(d.values()[0])
 	return default_value
+
+func import_one_resource_from_cache(resource: String, yield_every: int = 300) -> void:
+	if not _is_ready or cache_root.is_empty():
+		return
+
+	var details_dir := "%s/%s/details" % [cache_root, resource]
+	if not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(details_dir)):
+		return
+
+	var inserted := 0
+	var updated := 0
+	var skipped := 0
+	var errors := 0
+	var done := 0
+
+	_exec("BEGIN;")
+
+	var dd := DirAccess.open(details_dir)
+	if dd == null:
+		_exec("ROLLBACK;")
+		return
+
+	dd.list_dir_begin()
+	while true:
+		var f := dd.get_next()
+		if f == "":
+			break
+		if dd.current_is_dir():
+			continue
+		if not f.ends_with(".json"):
+			continue
+
+		var path := "%s/%s" % [details_dir, f]
+		var obj := _read_json(path)
+
+		if obj.is_empty():
+			errors += 1
+		else:
+			var r := upsert_entity(resource, obj)
+			inserted += int(r.get("inserted", 0))
+			updated += int(r.get("updated", 0))
+			skipped += int(r.get("skipped", 0))
+			errors += int(r.get("errors", 0))
+
+		done += 1
+		if (done % yield_every) == 0:
+			await get_tree().process_frame
+
+	dd.list_dir_end()
+
+	_exec("COMMIT;")
+	print("import_one_resource_from_cache(%s): +%d ~%d -%d err=%d" % [resource, inserted, updated, skipped, errors])
+
+func import_one_resource_from_cache_v2(resource: String, yield_every: int = 300) -> Dictionary:
+	# => {"inserted":x,"updated":y,"skipped":z,"errors":e,"total":t}
+	if not _is_ready:
+		return {"inserted":0,"updated":0,"skipped":0,"errors":1,"total":0}
+
+	if cache_root.is_empty():
+		return {"inserted":0,"updated":0,"skipped":0,"errors":1,"total":0}
+
+	var details_dir := "%s/%s/details" % [cache_root, resource]
+	var abs_details := ProjectSettings.globalize_path(details_dir)
+	if not DirAccess.dir_exists_absolute(abs_details):
+		push_error("[PokeDb] import_one_resource_from_cache: details_dir not found: %s" % details_dir)
+		return {"inserted":0,"updated":0,"skipped":0,"errors":1,"total":0}
+
+	var inserted := 0
+	var updated := 0
+	var skipped := 0
+	var errors := 0
+	var done := 0
+	var total := 0
+
+	# compte rapide
+	var dd_count := DirAccess.open(abs_details)
+	if dd_count != null:
+		dd_count.list_dir_begin()
+		while true:
+			var fn := dd_count.get_next()
+			if fn == "": break
+			if dd_count.current_is_dir(): continue
+			if fn.ends_with(".json"): total += 1
+		dd_count.list_dir_end()
+
+	_exec("BEGIN;")
+
+	# manifest (optionnel)
+	var manifest_path := "%s/%s/manifest.json" % [cache_root, resource]
+	var manifest_local := _read_json(manifest_path)
+	if not manifest_local.is_empty():
+		upsert_manifest(resource, manifest_local)
+
+	var dd := DirAccess.open(abs_details)
+	if dd == null:
+		_exec("ROLLBACK;")
+		return {"inserted":0,"updated":0,"skipped":0,"errors":1,"total":total}
+
+	dd.list_dir_begin()
+	while true:
+		var f := dd.get_next()
+		if f == "": break
+		if dd.current_is_dir(): continue
+		if not f.ends_with(".json"): continue
+
+		var path := "%s/%s" % [details_dir, f]
+		var obj := _read_json(path)
+
+		if obj.is_empty():
+			errors += 1
+		else:
+			var r := upsert_entity(resource, obj)
+			inserted += int(r.get("inserted", 0))
+			updated += int(r.get("updated", 0))
+			skipped += int(r.get("skipped", 0))
+			errors += int(r.get("errors", 0))
+
+		done += 1
+		if (done % yield_every) == 0:
+			await get_tree().process_frame
+
+	dd.list_dir_end()
+
+	_exec("COMMIT;")
+	return {"inserted":inserted,"updated":updated,"skipped":skipped,"errors":errors,"total":total}

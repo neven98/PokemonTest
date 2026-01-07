@@ -1,0 +1,532 @@
+[gd_scene load_steps=9 format=3 uid="uid://dywtb1jwou2xe"]
+
+[ext_resource type="Script" uid="uid://eengn3y435o8" path="res://src/model/pokedex/pokemon_details.gd" id="1_46q7r"]
+[ext_resource type="Script" uid="uid://bk4a1x8dkx6sx" path="res://src/model/pokedex/species_page.gd" id="2_hx3fc"]
+[ext_resource type="Texture2D" uid="uid://b8om26hkt8dvm" path="res://src/model/pokedex/background_sliding.PNG" id="2_irayc"]
+[ext_resource type="Texture2D" uid="uid://n54mrvqy37qs" path="res://Resource/texture/pokemon/0.png" id="3_qdy0j"]
+[ext_resource type="Script" uid="uid://b2yl8fabi40jv" path="res://src/model/pokedex/stats_page.gd" id="4_nsnvt"]
+[ext_resource type="PackedScene" uid="uid://d0fivh1hliox" path="res://src/model/chart/radar_chart.tscn" id="5_y1lhq"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cv5p1"]
+bg_color = Color(0.84622145, 0.30995795, 0.99999994, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_46q7r"]
+bg_color = Color(3.465414e-06, 0.6468611, 0.90777117, 1)
+corner_radius_top_left = 5
+corner_radius_top_right = 5
+corner_radius_bottom_right = 5
+corner_radius_bottom_left = 5
+
+[node name="PokemonDetails" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_46q7r")
+
+[node name="TextureRect" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("2_irayc")
+
+[node name="TopBar" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+alignment = 1
+
+[node name="PrevButton" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "PREVIOUS"
+
+[node name="NextButton" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "NEXT"
+
+[node name="BackButton" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "RETURN"
+
+[node name="Pages" type="TabContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 31.0
+grow_horizontal = 2
+grow_vertical = 2
+tab_alignment = 1
+current_tab = 2
+
+[node name="SpeciesPage" type="Control" parent="Pages"]
+visible = false
+layout_mode = 2
+script = ExtResource("2_hx3fc")
+metadata/_custom_type_script = "uid://bk4a1x8dkx6sx"
+metadata/_tab_index = 0
+
+[node name="Content" type="HBoxContainer" parent="Pages/SpeciesPage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="LeftColContainer" type="MarginContainer" parent="Pages/SpeciesPage/Content"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="LeftCol" type="VBoxContainer" parent="Pages/SpeciesPage/Content/LeftColContainer"]
+custom_minimum_size = Vector2(340, 420)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SpriteCard" type="PanelContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/SpriteCard"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+stretch_mode = 0
+
+[node name="TextureRect" type="TextureRect" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/SpriteCard/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("3_qdy0j")
+
+[node name="TypeRow" type="HBoxContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol"]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 1
+
+[node name="TypeOnePill" type="PanelContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/TypeRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+
+[node name="TypeOne" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/TypeRow/TypeOnePill"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "FIRE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TypeTwoPill" type="PanelContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/TypeRow"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+
+[node name="TypeTwo" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/TypeRow/TypeTwoPill"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "WATER"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="QuickFacts" type="PanelContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol"]
+layout_mode = 2
+
+[node name="GridContainer" type="GridContainer" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/QuickFacts"]
+layout_mode = 2
+theme_override_constants/h_separation = 18
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="LblHeightTitle" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Taille"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblHeight" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "1.4 m"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblWeightTitle" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+text = "Poids"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblWeight" type="Label" parent="Pages/SpeciesPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "62.0 kg"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RightColContainer" type="MarginContainer" parent="Pages/SpeciesPage/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="RightCol" type="VBoxContainer" parent="Pages/SpeciesPage/Content/RightColContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="HeaderBlock" type="VBoxContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="PokemonName" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/HeaderBlock"]
+layout_mode = 2
+text = "Bulbizarre"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Species" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/HeaderBlock"]
+layout_mode = 2
+text = "Pokemon bulbe"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DexNumber" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/HeaderBlock"]
+layout_mode = 2
+text = "0001 National"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="InfoRow" type="HBoxContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="BioCard" type="PanelContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BioGrid" type="GridContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard"]
+layout_mode = 2
+theme_override_constants/v_separation = 15
+columns = 2
+
+[node name="LblHabitatTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Habitat"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblHabitat" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Forêt"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblColorTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Couleur"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblColor" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Green"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblShapeTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Forme"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblShape" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Bipede"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblGrowthRateTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Growth Rate"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblGrowthRate" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/BioCard/BioGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Fast"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ReproCard" type="PanelContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MarginContainer2" type="MarginContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="ReproVBox" type="VBoxContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="GenreBar" type="ProgressBar" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox"]
+custom_minimum_size = Vector2(0, 25)
+layout_mode = 2
+theme_override_font_sizes/font_size = 21
+theme_override_styles/background = SubResource("StyleBoxFlat_cv5p1")
+theme_override_styles/fill = SubResource("StyleBoxFlat_46q7r")
+value = 50.0
+show_percentage = false
+
+[node name="MalePercentage" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/GenreBar"]
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_top = -11.5
+offset_right = 40.0
+offset_bottom = 11.5
+grow_vertical = 2
+text = "50%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FemalePercentage" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/GenreBar"]
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -40.0
+offset_top = -11.5
+offset_bottom = 11.5
+grow_horizontal = 0
+grow_vertical = 2
+text = "50%"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="VBoxContainer" type="GridContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 32
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="EggGroupsTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+text = "Egg groupe "
+
+[node name="EggGroups" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "MONSTRUEUX"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CaptureRateTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+text = "Capture Rate"
+
+[node name="CaptureRate" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "33"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BaseHappinessTitle" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+text = "Base Hapiness"
+
+[node name="BaseHappiness" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/InfoRow/ReproCard/MarginContainer2/ReproVBox/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DexEntryCard" type="PanelContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 8
+
+[node name="MarginContainer" type="MarginContainer" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/DexEntryCard"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Definition" type="Label" parent="Pages/SpeciesPage/Content/RightColContainer/RightCol/DexEntryCard/MarginContainer"]
+custom_minimum_size = Vector2(50, 50)
+layout_mode = 2
+text = "BLA BLA BLA BLA BLA BLA BLA BLA"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="StatsPage" type="Control" parent="Pages"]
+visible = false
+layout_mode = 2
+script = ExtResource("4_nsnvt")
+metadata/_tab_index = 1
+
+[node name="Content" type="HBoxContainer" parent="Pages/StatsPage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="LeftColContainer" type="MarginContainer" parent="Pages/StatsPage/Content"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="LeftCol" type="VBoxContainer" parent="Pages/StatsPage/Content/LeftColContainer"]
+custom_minimum_size = Vector2(340, 420)
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SpriteCard" type="PanelContainer" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/SpriteCard"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+stretch_mode = 0
+
+[node name="TextureRect" type="TextureRect" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/SpriteCard/AspectRatioContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+texture = ExtResource("3_qdy0j")
+
+[node name="QuickFacts" type="PanelContainer" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol"]
+layout_mode = 2
+
+[node name="GridContainer" type="GridContainer" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/QuickFacts"]
+layout_mode = 2
+theme_override_constants/h_separation = 18
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="LblXpGiveTitle" type="Label" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "XP GIVEN"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblXpGive" type="Label" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "16"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblStatGiveTitle" type="Label" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+text = "STAT GIVEN"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LblStatGive" type="Label" parent="Pages/StatsPage/Content/LeftColContainer/LeftCol/QuickFacts/GridContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "1 ATT / 1DEF / 1 ATT SP "
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RightColContainer" type="MarginContainer" parent="Pages/StatsPage/Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="RightCol" type="VBoxContainer" parent="Pages/StatsPage/Content/RightColContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Pages/StatsPage/Content/RightColContainer/RightCol"]
+layout_mode = 2
+alignment = 1
+
+[node name="PokemonName" type="Label" parent="Pages/StatsPage/Content/RightColContainer/RightCol/HBoxContainer"]
+layout_mode = 2
+text = "Bulbizarre"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Button" type="Button" parent="Pages/StatsPage/Content/RightColContainer/RightCol/HBoxContainer"]
+layout_mode = 2
+
+[node name="Radarc2" type="PanelContainer" parent="Pages/StatsPage/Content/RightColContainer/RightCol"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RadarChart" parent="Pages/StatsPage/Content/RightColContainer/RightCol/Radarc2" instance=ExtResource("5_y1lhq")]
+layout_mode = 2
+
+[node name="Talent" type="PanelContainer" parent="Pages/StatsPage/Content/RightColContainer/RightCol"]
+custom_minimum_size = Vector2(0, 180)
+layout_mode = 2
+size_flags_vertical = 8
+
+[node name="MarginContainer" type="MarginContainer" parent="Pages/StatsPage/Content/RightColContainer/RightCol/Talent"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="TabContainer" type="TabContainer" parent="Pages/StatsPage/Content/RightColContainer/RightCol/Talent/MarginContainer"]
+layout_mode = 2
+
+[node name="EvoPage" type="Control" parent="Pages"]
+layout_mode = 2
+metadata/_tab_index = 2

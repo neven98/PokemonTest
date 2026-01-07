@@ -1,6 +1,11 @@
-[gd_scene load_steps=2 format=3 uid="uid://byp2rf2iuoc03"]
+[gd_scene load_steps=5 format=3 uid="uid://byp2rf2iuoc03"]
 
 [ext_resource type="Script" uid="uid://bf3sypmisxjq2" path="res://src/model/pokedex/pokedex_menu.gd" id="1_5wt0s"]
+[ext_resource type="Texture2D" uid="uid://b8om26hkt8dvm" path="res://src/model/pokedex/background_sliding.PNG" id="2_aghu3"]
+[ext_resource type="Texture2D" uid="uid://usoy1anaep87" path="res://src/model/pokedex/Sans titre.png" id="3_wjp17"]
+
+[sub_resource type="StyleBoxTexture" id="StyleBoxTexture_wefhu"]
+texture = ExtResource("3_wjp17")
 
 [node name="PokedexMenu" type="Control"]
 layout_mode = 3
@@ -11,14 +16,14 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_5wt0s")
 
-[node name="Fade" type="ColorRect" parent="."]
+[node name="TextureRect" type="TextureRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.24840015, 0.24840018, 0.24840015, 1)
+texture = ExtResource("2_aghu3")
 
 [node name="TopBar" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -65,17 +70,36 @@ layout_mode = 2
 size_flags_horizontal = 8
 text = "Return"
 
+[node name="PokemonPreview" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 37.0
+offset_top = 109.0
+offset_right = -650.0
+offset_bottom = -83.0
+grow_horizontal = 2
+grow_vertical = 2
+
 [node name="List" type="ItemList" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 26.0
-offset_top = 40.0
-offset_right = -29.0
-offset_bottom = -37.0
+offset_left = 542.0
+offset_top = 88.0
+offset_right = -35.0
+offset_bottom = -57.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_force_pass_scroll_events = false
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_constants/h_separation = 60
+theme_override_constants/v_separation = 21
+theme_override_font_sizes/font_size = 30
+theme_override_styles/panel = SubResource("StyleBoxTexture_wefhu")
+same_column_width = true
 
 [node name="BottomBar" type="HBoxContainer" parent="."]
 layout_mode = 1
@@ -107,3 +131,14 @@ text = "Next"
 layout_mode = 0
 offset_right = 376.0
 offset_bottom = 23.0
+
+[node name="Fade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 1)
+
+[connection signal="item_clicked" from="List" to="." method="_on_list_item_clicked"]

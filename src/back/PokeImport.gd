@@ -7,23 +7,56 @@ signal import_finished(status: String, inserted: int, updated: int, skipped: int
 @export var max_files_per_run := 5000
 
 const PROGRESS_EVERY := 5000
+@export var yield_every := 5000
 const YIELD_EVERY := 800  # juste pour éviter un freeze trop violent (pas obligé)
-
+const NO_CAP := 1 << 30
 var _t0_ms := 0
 var _last_tick_ms := 0
 var _last_tick_done := 0
 
-func import_step(max_files: int = -1) -> void:
+func reset_cursor(resource: String) -> void:
+	PokeDb.import_cursor_set(resource, 0)
+
+func import_only(resource: String, max_files: int = -1) -> void:
+	await _import_resources([resource], max_files)
+
+func import_step(max_files: int = 0) -> void:
+	# 0 => comportement "par défaut" (5000)
+	# -1 => illimité
+	await _import_resources(PokeCacheSync.REGISTRY, max_files)
+
+func _import_resources(resources: Array[String], max_files: int) -> void:
 	if not PokeDb.is_ready():
 		emit_signal("import_finished", "DB_NOT_READY", 0, 0, 0, 1, 0)
 		return
 
-	var cache_root := PokeCacheSync.cache_root
-	var resources: Array[String] = PokeCacheSync.REGISTRY
+	var cap := NO_CAP
+	if max_files == 0:
+		cap = max_files_per_run
+	elif max_files > 0:
+		cap = max_files
+	# max_files < 0 => NO_CAP
 
-	var total_remaining := _compute_total_remaining(cache_root, resources)
-	var unlimited := (max_files <= 0)
-	var total_target :int= total_remaining if unlimited else min(max_files, total_remaining)
+	var cache_root := PokeCacheSync.cache_root
+
+	# total "réel" = nombre d’éléments restants à importer (ça règle ton %)
+	var total_to_do := 0
+	for res in resources:
+		var index_path := "%s/%s/index.json" % [cache_root, res]
+		if not FileAccess.file_exists(index_path):
+			continue
+		var idx := _read_json(index_path)
+		var results: Array = idx.get("results", [])
+		if results.is_empty():
+			continue
+		var cursor := int(PokeDb.import_cursor_get(res))
+		total_to_do += max(0, results.size() - cursor)
+
+	total_to_do = min(total_to_do, cap)
+
+	if total_to_do <= 0:
+		emit_signal("import_finished", "NOTHING_TO_IMPORT", 0, 0, 0, 0, 0)
+		return
 
 	var done := 0
 	var ins := 0
@@ -31,15 +64,13 @@ func import_step(max_files: int = -1) -> void:
 	var skp := 0
 	var err := 0
 
-	if total_target <= 0:
-		emit_signal("import_finished", "DONE", 0, 0, 0, 0, 0)
-		return
+	PokeDb._exec("BEGIN;")
 
-	for resource in resources:
-		if done >= total_target:
+	for res in resources:
+		if done >= cap:
 			break
 
-		var index_path := "%s/%s/index.json" % [cache_root, resource]
+		var index_path := "%s/%s/index.json" % [cache_root, res]
 		if not FileAccess.file_exists(index_path):
 			continue
 
@@ -48,32 +79,27 @@ func import_step(max_files: int = -1) -> void:
 		if results.is_empty():
 			continue
 
-		var cursor :Variant= max(0, PokeDb.import_cursor_get(resource))
+		var cursor := int(PokeDb.import_cursor_get(res))
+		if cursor < 0: cursor = 0
 		if cursor >= results.size():
 			continue
 
-		var res_total := results.size()
+		emit_signal("import_progress", "Import %s…" % res, done, total_to_do, ins, upd, skp, err)
 
-		emit_signal("import_progress",
-			"Import %s… (ressource %d/%d)" % [resource, cursor, res_total],
-			done, total_target, ins, upd, skp, err
-		)
-		await get_tree().process_frame
-
-		while cursor < results.size() and done < total_target:
+		while cursor < results.size() and done < cap:
 			var row = results[cursor]
 			var key := _index_key(row)
 			if key == "":
 				cursor += 1
 				continue
 
-			var detail_path := "%s/%s/details/%s.json" % [cache_root, resource, key]
+			var detail_path := "%s/%s/details/%s.json" % [cache_root, res, key]
 			var obj := _read_json(detail_path)
 			if obj.is_empty():
 				cursor += 1
 				continue
 
-			var r := _import_one(resource, obj)
+			var r := _import_one(res, obj)
 			ins += int(r.get("inserted", 0))
 			upd += int(r.get("updated", 0))
 			skp += int(r.get("skipped", 0))
@@ -82,24 +108,30 @@ func import_step(max_files: int = -1) -> void:
 			cursor += 1
 			done += 1
 
-			# update label toutes les 5000
-			if (done % PROGRESS_EVERY) == 0:
-				emit_signal("import_progress",
-					"Import %s… (ressource %d/%d)" % [resource, cursor, res_total],
-					done, total_target, ins, upd, skp, err
-				)
-
-			# yield (optionnel)
-			if (done % YIELD_EVERY) == 0:
+			if (done % yield_every) == 0:
+				emit_signal("import_progress", "Import %s (%d/%d)" % [res, done, total_to_do], done, total_to_do, ins, upd, skp, err)
 				await get_tree().process_frame
 
-		PokeDb.import_cursor_set(resource, cursor)
+		PokeDb.import_cursor_set(res, cursor)
 
-	var status := "DONE"
-	if not unlimited and total_remaining > total_target:
-		status = "PARTIAL"
+	PokeDb._exec("COMMIT;")
 
-	emit_signal("import_finished", status, ins, upd, skp, err, total_target)
+	var status := "DONE" if done >= total_to_do else "PARTIAL"
+	emit_signal("import_finished", status, ins, upd, skp, err, total_to_do)
+
+func _import_one(resource: String, obj: Dictionary) -> Dictionary:
+	match resource:
+		"pokemon_type":
+			return PokeDb.upsert_pokemon_type(obj)
+		"pokemon_stat":
+			return PokeDb.upsert_pokemon_stat(obj)
+		"pokemon_ability":
+			return PokeDb.upsert_pokemon_ability(obj)
+		"pokemon_move":
+			return PokeDb.upsert_pokemon_move(obj)
+		"pokedex_number", "pokemondexnumber":
+			return PokeDb.upsert_pokedex_number(obj)
+	return PokeDb.upsert_entity_obj(resource, obj)
 
 func _compute_total_remaining(cache_root: String, resources: Array[String]) -> int:
 	var total := 0
@@ -158,22 +190,6 @@ func _format_eta(sec: float) -> String:
 func rebuild_all_indexes() -> void:
 	for res in PokeCacheSync.REGISTRY:
 		rebuild_index_from_details(res)
-
-func _import_one(resource: String, obj: Dictionary) -> Dictionary:
-	# Relations Pokémon -> tables dédiées
-	match resource:
-		"pokemon_type":
-			return PokeDb.upsert_pokemon_type(obj)
-		"pokemon_stat":
-			return PokeDb.upsert_pokemon_stat(obj)
-		"pokemon_ability":
-			return PokeDb.upsert_pokemon_ability(obj)
-		"pokemon_move":
-			return PokeDb.upsert_pokemon_move(obj)
-		"pokedex":
-			return PokeDb.upsert_pokedex_number(obj)
-	# Tout le reste -> table entities (id obligatoire)
-	return PokeDb.upsert_entity_obj(resource, obj)
 
 func _index_key(row: Variant) -> String:
 	# index parfois = [{"id":1}, ...] ou [{"key":"..."}] ou [1,2,3] ou ["1","2"...]

@@ -12,7 +12,7 @@ extends Control
 @onready var lbl_info: Label = $Info
 @onready var chk_mega: CheckBox = $TopBar/MegaCheck
 
-const PAGE_SIZE := 50
+const PAGE_SIZE := 8
 const REGION_SLICES := [
 	{"label":"Kanto",  "start":1,   "end":151},
 	{"label":"Johto",  "start":152, "end":251},
@@ -198,6 +198,7 @@ func _setup_ui() -> void:
 		_apply_mode_ui()
 		_reload()
 	)
+	
 
 	# régions
 	_fill_region_option_with_slices()
@@ -217,7 +218,80 @@ func _setup_ui() -> void:
 			_reload_page_only()
 	)
 
-	list.item_activated.connect(_on_item_activated)
+	list.item_selected.connect(_on_list_item_selected)
+
+	# Ouvrir seulement sur action “forte”
+	list.item_activated.connect(_open_details_from_local_index)
+	list.mouse_filter = Control.MOUSE_FILTER_PASS
+
+var _hover_index := -1
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		_update_hover_preview()
+
+func _update_hover_preview() -> void:
+	# position souris dans le repère du ItemList
+	var local := list.get_local_mouse_position()
+	var idx := list.get_item_at_position(local, true) # true => exact item only
+
+	if idx == -1:
+		return
+
+	# évite spam
+	if idx == _hover_index:
+		return
+	_hover_index = idx
+	list.select(idx)
+	_preview_from_local_index(idx)
+
+func _on_list_item_selected(index: int) -> void:
+	_preview_from_local_index(index)
+
+func _on_list_item_hovered(index: int) -> void:
+	# Hover = preview, mais ne change pas la sélection (comme tu veux)
+	_preview_from_local_index(index)
+
+
+func _preview_from_local_index(local_index: int) -> void:
+	if local_index < 0 or local_index >= _page_rows.size():
+		return
+
+	var row := _page_rows[local_index]
+
+	if str(row.get("kind", "")) == "mega":
+		var sid := int(row.get("species_id", 0))
+		var pid := int(row.get("pokemon_id", 0))
+		var dn := str(row.get("name", ""))
+		if sid > 0:
+			_set_artwork(sid)
+	else:
+		var sid := int(row.get("id", 0))
+		var dn := str(row.get("name", ""))
+		if sid > 0:
+			_set_artwork(sid)
+		else :
+			_set_artwork(0)
+
+
+# =========================
+# ARTWORK
+# =========================
+const ART_DIR := "res://Resource/texture/pokemon/other/official-artwork/"
+const ART_FALLBACK := "res://Resource/texture/pokemon/0.png"
+
+func _set_artwork(pokemon_id: int) -> void:
+	var path := "%s%d.png" % [ART_DIR, pokemon_id]
+	var final_path := path if ResourceLoader.exists(path) else ART_FALLBACK
+	var tex := load(final_path)
+	if tex is Texture2D:
+		$PokemonPreview.texture = tex
+
+func _on_list_item_clicked(index: int, _pos: Vector2, button: int) -> void:
+	if button != MOUSE_BUTTON_LEFT:
+		return
+	_open_details_from_local_index(index)
+
 
 func _fill_regions() -> void:
 	opt_region.clear()
@@ -337,7 +411,7 @@ func _render_list() -> void:
 		var num := int(row.get("num", id))
 
 		# si tu veux afficher un "numéro pokedex", tu peux le format ici
-		list.add_item("#%04d  %s" % [num, name])
+		list.add_item("%04d    %s" % [num, name])
 
 func _on_search_submit(text: String) -> void:
 	var q := text.strip_edges()
@@ -373,6 +447,7 @@ func _jump_to_species(species_id: int) -> void:
 	var local := index % PAGE_SIZE
 	if local >= 0 and local < list.item_count:
 		list.select(local)
+		_preview_from_local_index(local)
 		list.ensure_current_is_visible()
 
 func _index_of_species_in_current_mode(species_id: int) -> int:
@@ -466,7 +541,7 @@ func _fetch_species_in_pokedex(pokedex_id: int, limit: int, offset: int) -> Arra
 
 	# dex_pokedex_number: (pokedex_id, pokemon_species_id, pokedex_number)
 	var rows := PokeDb._query_bind(
-        "SELECT pokemon_species_id AS id, pokedex_number AS num "
+		"SELECT pokemon_species_id AS id, pokedex_number AS num "
 		+ "FROM dex_pokedex_number WHERE pokedex_id=? "
 		+ "ORDER BY pokedex_number ASC LIMIT ? OFFSET ?;",
 		[pokedex_id, limit, offset]
@@ -530,3 +605,11 @@ func _fade_out() -> void:
 	var t := create_tween()
 	t.tween_property(fade, "color:a", 1.0, 0.2)
 	await t.finished
+
+func _open_details_from_local_index(local_index: int) -> void:
+	if local_index < 0 or local_index >= _page_rows.size():
+		return
+
+	var global_index := _page * PAGE_SIZE + local_index
+	PokedexNav.set_context(_entries, global_index, "res://src/model/pokedex/pokedex_menu.tscn")
+	get_tree().change_scene_to_file("res://src/model/pokedex/pokemon_details.tscn")

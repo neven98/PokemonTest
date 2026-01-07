@@ -26,6 +26,7 @@ PokeConfig="*res://src/config/PokeConfig.gd"
 PokeGen="*res://src/model/pokemon/PokemonGenerator.gd"
 PokeDex="*res://src/model/pokedex/PokeDex.gd"
 PokeRules="*res://src/data/PokeRules.gd"
+PokedexNav="*res://src/model/pokedex/pokedexNav.gd"
 
 [editor_plugins]
 

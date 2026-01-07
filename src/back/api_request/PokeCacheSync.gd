@@ -8,6 +8,12 @@ signal offline_finished(status: String, calls_used: int, remaining_resources: in
 @export var sample_size := 25
 @onready var api: PokeApiClient = PokeApiClient.new()
 
+# type_name -> { field_name -> { "kind": "...", "name": "..." } }
+var _type_field_to_named: Dictionary = {}
+
+# ids langue (pokeapi classique) : fr=5, en=9
+const KEEP_LANG_IDS := [5, 9]
+
 var _type_to_all_fields: Dictionary = {}  # type_name -> Array[String]
 var _resolved_field_for_key: Dictionary = {} # key -> real_field_name
 var KEY_FIELD_OVERRIDES := {
@@ -168,9 +174,16 @@ func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 	# 1) Résout root field + scalars
 	var scalars: Array[String] = _get_scalar_fields_for_key(resource)
 	var field := _resolve_root_field_for_key(resource)
-	if field.is_empty() or scalars.is_empty():
-		print("key=", resource, " field=", field, " scalars=", scalars)
+	var has_custom := CUSTOM_SELECTION.has(resource)
+
+	# ✅ si custom selection -> on n'exige pas scalars
+	if field.is_empty() or (scalars.is_empty() and not has_custom):
+		print("key=", resource, " field=", field, " scalars=", scalars, " custom=", has_custom)
 		return {"status":"ERROR", "calls": 0}
+
+	# ✅ si custom et scalars vides, on force au moins "id" pour fichier + fingerprint
+	if scalars.is_empty() and has_custom:
+		scalars = ["id"]
 
 	var has_id := scalars.has("id")
 	var has_name := scalars.has("name")
@@ -276,11 +289,8 @@ func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 		index_map.clear()
 
 	# 6) Download pages
-	var selection := ""
-	if CUSTOM_SELECTION.has(resource):
-		selection = String(CUSTOM_SELECTION[resource]).strip_edges()
-	else:
-		selection = _join_fields(scalars)
+	var selection := _selection_for_resource(resource, field, scalars)
+
 
 	while calls < max_calls:
 		emit_signal("offline_progress", "%s [%s] offset=%d" % [resource, mode, offset], calls, _load_pending().size())
@@ -307,6 +317,7 @@ func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 		calls += 1
 
 		if data.has("_error"):
+			print("[GQL ERROR]", resource, " => ", data)
 			var e := String(data["_error"])
 			if e == "rate_limited":
 				_save_state(state_path, mode, offset, gt_id, false)
@@ -351,6 +362,10 @@ func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 
 			var detail_path := "%s/%s/details/%s.json" % [cache_root, resource, filename]
 
+			if resource == "pokemon_species":
+				var eg_ids := _extract_egg_group_ids_from_species_obj(obj)
+				if not eg_ids.is_empty():
+					obj["egg_group_ids"] = eg_ids
 			if mode == "incremental":
 				if not FileAccess.file_exists(detail_path):
 					_write_json(detail_path, obj)
@@ -393,7 +408,7 @@ func _fetch_fingerprint(key: String, has_name: bool) -> Dictionary:
 		return {"status":"ERROR", "calls": calls}
 
 	var scalars: Array[String] = _get_scalar_fields_for_key(key)
-	var has_id := scalars.has("id")
+	var has_id := scalars.has("id") or CUSTOM_SELECTION.has(key)
 
 	# 1) aggregate
 	var agg_field := "%s_aggregate" % field
@@ -568,6 +583,7 @@ func _load_schema_from_json(schema: Dictionary) -> void:
 		var fields: Array = td.get("fields", []) as Array
 		var scalars: Array[String] = []
 		var all_fields: Array[String] = []
+		var field_types: Dictionary = {}
 		for f in fields:
 			if typeof(f) != TYPE_DICTIONARY:
 				continue
@@ -578,11 +594,118 @@ func _load_schema_from_json(schema: Dictionary) -> void:
 				continue
 			var ft := fd.get("type", {}) as Dictionary
 			var named := _unwrap_named_type(ft)
+			field_types[fname] = {
+				"kind": String(named.get("kind", "")),
+				"name": String(named.get("name", "")),
+			}
 			if String(named.get("kind", "")) == "SCALAR":
 				scalars.append(fname)
+		_type_field_to_named[tname] = field_types
 		_type_to_all_fields[tname] = all_fields
 		_type_to_scalar_fields[tname] = scalars
 	_schema_loaded = true
+
+
+func _gql_int_list(ids: Array) -> String:
+	var parts: Array[String] = []
+	for v in ids:
+		parts.append(str(int(v)))
+	return "[" + ",".join(parts) + "]"
+
+func _norm(s: String) -> String:
+	return s.to_lower().replace("_", "").replace("-", "")
+
+func _find_scalar_in_type(type_name: String, patterns) -> String:
+	# patterns = Array (strings ou trucs convertibles)
+	if not _type_to_scalar_fields.has(type_name):
+		return ""
+
+	var scalars_any: Array = _type_to_scalar_fields[type_name]
+	for f in scalars_any:
+		var fs := String(f)
+		var nf := _norm(fs)
+
+		var ok := true
+		for p in patterns:
+			if nf.find(_norm(String(p))) == -1:
+				ok = false
+				break
+
+		if ok:
+			return fs
+
+	return ""
+
+
+func _relation_type_name(parent_type: String, field_name: String) -> String:
+	if not _type_field_to_named.has(parent_type):
+		return ""
+	var m :Variant= _type_field_to_named[parent_type]
+	if typeof(m) != TYPE_DICTIONARY:
+		return ""
+	var info :Variant= (m as Dictionary).get(field_name, null)
+	if info == null or typeof(info) != TYPE_DICTIONARY:
+		return ""
+	return String((info as Dictionary).get("name", ""))
+
+func _find_relation_field_that_has_child_scalar(parent_type: String, child_scalar_patterns) -> String:
+	if not _type_to_all_fields.has(parent_type):
+		return ""
+
+	var fields_any: Array = _type_to_all_fields[parent_type]
+	for f in fields_any:
+		var fname := String(f)
+		var child_type := _relation_type_name(parent_type, fname)
+		if child_type.is_empty():
+			continue
+
+		var s := _find_scalar_in_type(child_type, child_scalar_patterns)
+		if s != "":
+			return fname
+
+	return ""
+
+func _build_child_selection(child_type: String, wanted_patterns_list, with_lang_filter: bool, order_by_patterns, limit: int) -> String:
+	# wanted_patterns_list = [ ["flavor","text"], ["language","id"], ... ]
+	var picked: Array[String] = []
+	for pats in wanted_patterns_list:
+		var f := _find_scalar_in_type(child_type, pats)
+		if f != "":
+			picked.append(f)
+
+	# fallback minimal
+	if picked.is_empty():
+		for fb in [["id"], ["name"]]:
+			var f2 := _find_scalar_in_type(child_type, fb)
+			if f2 != "":
+				picked.append(f2)
+				break
+
+	if picked.is_empty():
+		return ""
+
+	var args: Array[String] = []
+
+	if with_lang_filter:
+		var lang_col := _find_scalar_in_type(child_type, ["language","id"])
+		if lang_col != "":
+			args.append("where:{%s:{_in:%s}}" % [lang_col, _gql_int_list(KEEP_LANG_IDS)])
+
+	var ob_col := ""
+	if order_by_patterns != null and order_by_patterns.size() > 0:
+		ob_col = _find_scalar_in_type(child_type, order_by_patterns)
+		if ob_col != "":
+			args.append("order_by:{%s:desc}" % ob_col)
+
+	if limit > 0:
+		args.append("limit:%d" % limit)
+
+	var arg_txt := ""
+	if args.size() > 0:
+		arg_txt = "(" + ", ".join(args) + ")"
+
+	return "%s{ %s }" % [arg_txt, _join_fields(picked)]
+
 
 func _get_scalar_fields_for_key(key: String) -> Array[String]:
 	if not _schema_loaded:
@@ -899,6 +1022,202 @@ func debug_print_schema() -> void:
 	print("[Schema] loaded=", _schema_loaded, " root_fields=", _root_field_to_type.size())
 	print("root contains 'pokemon' =", debug_root_fields_contains("pokemon"))
 	print("root contains 'move'   =", debug_root_fields_contains("move"))
+
+func _selection_for_resource(resource: String, root_field: String, scalars: Array[String]) -> String:
+	# 1) override manuel si tu veux
+	if CUSTOM_SELECTION.has(resource):
+		return String(CUSTOM_SELECTION[resource]).strip_edges()
+
+	# 2) auto-enrich pour pokemon_species (genus + flavor + pokedex numbers)
+	if resource == "pokemon_species":
+		var type_name := String(_root_field_to_type.get(root_field, ""))
+		if type_name.is_empty():
+			return _join_fields(scalars)
+
+		var sel := _join_fields(scalars)
+
+		# relation "genus" (souvent table names)
+		var genus_rel := _find_relation_field_that_has_child_scalar(type_name, ["genus"])
+		if genus_rel != "":
+			var child_type := _relation_type_name(type_name, genus_rel)
+			var child_sel := _build_child_selection(
+				child_type,
+				[["genus"], ["language","id"]],
+				true,   # filtre fr/en
+				[],     # pas d'ordre
+				10
+			)
+			if child_sel != "":
+				sel += " %s%s" % [genus_rel, child_sel]
+
+		# relation "flavor text"
+		var flavor_rel := _find_relation_field_that_has_child_scalar(type_name, ["flavor","text"])
+		if flavor_rel != "":
+			var child_type2 := _relation_type_name(type_name, flavor_rel)
+			var child_sel2 := _build_child_selection(
+				child_type2,
+				[["flavor","text"], ["language","id"], ["version","id"]],
+				true,                 # filtre fr/en
+				["version","id"],      # ordre version desc si dispo
+				40                    # limite
+			)
+			if child_sel2 != "":
+				sel += " %s%s" % [flavor_rel, child_sel2]
+				# -------- Egg groups (relation) --------
+		# On cherche une relation dont le "child type" contient un champ style egg_group_id
+		var egg_rel := _find_relation_field_that_has_child_scalar(type_name, ["egg", "group", "id"])
+		if egg_rel != "":
+			var egg_child_type := _relation_type_name(type_name, egg_rel)
+			var egg_child_sel := _build_child_selection(
+				egg_child_type,
+				[["pokemon", "species", "id"], ["egg", "group", "id"]],
+				false,  # pas de filtre langue
+				[],     # pas d'ordre
+				10
+			)
+			if egg_child_sel != "":
+				sel += " %s%s" % [egg_rel, egg_child_sel]
+		
+		# relation "pokedex entry number"
+		# on tente entry_number, sinon pokedex_number
+		var dex_rel := _find_relation_field_that_has_child_scalar(type_name, ["entry","number"])
+		if dex_rel == "":
+			dex_rel = _find_relation_field_that_has_child_scalar(type_name, ["pokedex","number"])
+		if dex_rel != "":
+			var child_type3 := _relation_type_name(type_name, dex_rel)
+			var child_sel3 := _build_child_selection(
+				child_type3,
+				[["entry","number"], ["pokedex","id"], ["pokedex","number"]],
+				false,
+				[],
+				80
+			)
+			if child_sel3 != "":
+				sel += " %s%s" % [dex_rel, child_sel3]
+
+		return sel
+
+	# ✅ enrich ability: noms localisés + descriptions
+	if resource == "ability":
+		var type_name := String(_root_field_to_type.get(root_field, ""))
+		if type_name.is_empty():
+			return _join_fields(scalars)
+
+		var sel := _join_fields(scalars)
+
+		# ---- NAMES (FR/EN) ----
+		# On cherche une relation qui ressemble à "names" et qui contient { name, language_id }
+		var names_rel := _find_relation_field(type_name, "name", [["name"], ["language","id"]])
+		if names_rel != "":
+			var child_type := _relation_type_name(type_name, names_rel)
+			var child_sel := _build_child_selection(
+				child_type,
+				[["name"], ["language","id"]],
+				true,      # filtre fr/en
+				[],        # pas d'ordre
+				10
+			)
+			if child_sel != "":
+				sel += " %s%s" % [names_rel, child_sel]
+
+		# ---- EFFECT ENTRIES (FR/EN) ----
+		# On préfère short_effect, sinon effect
+		var effect_rel := ""
+		effect_rel = _find_relation_field(type_name, "effect", [["short","effect"], ["language","id"]])
+		if effect_rel == "":
+			effect_rel = _find_relation_field(type_name, "effect", [["effect"], ["language","id"]])
+
+		if effect_rel != "":
+			var child_type2 := _relation_type_name(type_name, effect_rel)
+
+			# essaie de trier par version_group_id si présent, sinon pas grave
+			var child_sel2 := _build_child_selection(
+				child_type2,
+				[["short","effect"], ["effect"], ["language","id"], ["version","group","id"]],
+				true,                     # filtre fr/en
+				["version","group","id"],  # ordre desc si dispo
+				30
+			)
+			if child_sel2 == "":
+				# fallback sans version_group
+				child_sel2 = _build_child_selection(
+					child_type2,
+					[["short","effect"], ["effect"], ["language","id"]],
+					true,
+					[],
+					30
+				)
+
+			if child_sel2 != "":
+				sel += " %s%s" % [effect_rel, child_sel2]
+
+		return sel
+
+	# 3) par défaut : scalars only (rapide)
+	return _join_fields(scalars)
+
+func _child_has_all_scalars(child_type: String, patterns_list: Array) -> bool:
+	# patterns_list = [ ["name"], ["language","id"], ... ]
+	for pats in patterns_list:
+		var f := _find_scalar_in_type(child_type, pats)
+		if f == "":
+			return false
+	return true
+
+func _find_relation_field(parent_type: String, field_hint: String, child_required_patterns: Array) -> String:
+	# field_hint: "name", "effect" ... (peut être "")
+	if not _type_to_all_fields.has(parent_type):
+		return ""
+
+	var hint := field_hint.to_lower()
+
+	for f in (_type_to_all_fields[parent_type] as Array):
+		var fname := String(f)
+		if hint != "" and fname.to_lower().find(hint) == -1:
+			continue
+
+		var child_type := _relation_type_name(parent_type, fname)
+		if child_type.is_empty():
+			continue
+
+		if _child_has_all_scalars(child_type, child_required_patterns):
+			return fname
+
+	return ""
+
+
+func _extract_egg_group_ids_from_species_obj(obj: Dictionary) -> Array[int]:
+	var tmp: Array[int] = []
+	for k in obj.keys():
+		var v :Variant= obj[k]
+		if typeof(v) != TYPE_ARRAY:
+			continue
+		for it in (v as Array):
+			if typeof(it) != TYPE_DICTIONARY:
+				continue
+			var d := it as Dictionary
+			for dk in d.keys():
+				var ks := String(dk).to_lower()
+				if ks.find("egg_group_id") != -1:
+					var idv := int(d.get(dk, 0))
+					if idv > 0:
+						tmp.append(idv)
+
+	tmp.sort()
+	var uniq: Array[int] = []
+	for idv in tmp:
+		if uniq.is_empty() or uniq[uniq.size() - 1] != idv:
+			uniq.append(idv)
+	return uniq
+
+
+func force_resync_one(resource: String) -> void:
+	_wipe_resource(resource)
+	var pending := _load_pending()
+	if not pending.has(resource):
+		pending.push_front(resource)
+		_save_pending(pending)
+
 
 func debug_print_pending() -> void:
 	var p := _load_pending()
