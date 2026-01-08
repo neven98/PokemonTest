@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://dywtb1jwou2xe"]
+[gd_scene load_steps=11 format=3 uid="uid://dywtb1jwou2xe"]
 
 [ext_resource type="Script" uid="uid://eengn3y435o8" path="res://src/model/pokedex/pokemon_details.gd" id="1_46q7r"]
 [ext_resource type="Script" uid="uid://bk4a1x8dkx6sx" path="res://src/model/pokedex/species_page.gd" id="2_hx3fc"]
@@ -6,6 +6,8 @@
 [ext_resource type="Texture2D" uid="uid://n54mrvqy37qs" path="res://Resource/texture/pokemon/0.png" id="3_qdy0j"]
 [ext_resource type="Script" uid="uid://b2yl8fabi40jv" path="res://src/model/pokedex/stats_page.gd" id="4_nsnvt"]
 [ext_resource type="PackedScene" uid="uid://d0fivh1hliox" path="res://src/model/chart/radar_chart.tscn" id="5_y1lhq"]
+[ext_resource type="Script" uid="uid://0a3o3ood8ljy" path="res://src/model/pokedex/EvolutionGraph.gd" id="7_n1qff"]
+[ext_resource type="Script" uid="uid://85w4d2vfp60" path="res://src/model/pokedex/EvoPage.gd" id="7_vmusg"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_cv5p1"]
 bg_color = Color(0.84622145, 0.30995795, 0.99999994, 1)
@@ -529,4 +531,36 @@ layout_mode = 2
 
 [node name="EvoPage" type="Control" parent="Pages"]
 layout_mode = 2
+script = ExtResource("7_vmusg")
 metadata/_tab_index = 2
+
+[node name="Root" type="VBoxContainer" parent="Pages/EvoPage"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = 19.0
+offset_bottom = -51.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Header" type="HBoxContainer" parent="Pages/EvoPage/Root"]
+layout_mode = 2
+alignment = 1
+
+[node name="Title" type="Label" parent="Pages/EvoPage/Root/Header"]
+layout_mode = 2
+text = "EVOLUTION"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Debug" type="Label" parent="Pages/EvoPage/Root/Header"]
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EvolutionGraph" type="Control" parent="Pages/EvoPage/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+script = ExtResource("7_n1qff")
+metadata/_custom_type_script = "uid://0a3o3ood8ljy"

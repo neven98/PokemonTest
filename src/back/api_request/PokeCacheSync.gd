@@ -53,7 +53,7 @@ var REGISTRY: Array[String] = [
 	# Encounters
 	"encounter_method", "encounter_condition", "encounter_condition_value",
 	# Evolution
-	"evolution_chain", "evolution_trigger",
+	"evolution_trigger", "evolution_chain_rest",
 	# Games
 	"generation", "pokedex", "version", "version_group",
 	# Items
@@ -170,7 +170,8 @@ func read_detail(resource: String, id: int) -> Dictionary:
 
 func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 	var calls := 0
-
+	if resource == "evolution_chain_rest":
+		return await _sync_evolution_chain_rest(max_calls)
 	# 1) Résout root field + scalars
 	var scalars: Array[String] = _get_scalar_fields_for_key(resource)
 	var field := _resolve_root_field_for_key(resource)
@@ -403,6 +404,7 @@ func _sync_resource_offline(resource: String, max_calls: int) -> Dictionary:
 
 func _fetch_fingerprint(key: String, has_name: bool) -> Dictionary:
 	var calls := 0
+	
 	var field := _resolve_root_field_for_key(key)
 	if field.is_empty():
 		return {"status":"ERROR", "calls": calls}
@@ -1225,3 +1227,154 @@ func debug_print_pending() -> void:
 	print("[Pending] first10=", p.slice(0, min(10, p.size())))
 	print("[Pending] contains pokemon_type? ", p.has("pokemon_type"))
 	print("[Pending] contains pokemon_move? ", p.has("pokemon_move"))
+
+func evolution_chain_cached(chain_id: int) -> Dictionary:
+	return await api.rest_cached(
+		"/evolution-chain/%d/" % chain_id,
+		"evolution_chain_rest",
+		str(chain_id)
+	)
+
+func ensure_chain_in_db(chain_id: int) -> Dictionary:
+	# 1) download (ou cache hit)
+	var data := await api.evolution_chain_cached(chain_id)
+	if data.has("_error"):
+		push_error("REST chain fetch failed: %s" % str(data))
+		return data
+
+	# 2) store in DB (json brut)
+	var r :Variant= PokeDb.store_evolution_chain_rest(data)
+	return {"ok": true, "cache": data.get("_cache","?"), "db": r}
+
+func _id_from_url(url: String) -> int:
+	var s := url.strip_edges()
+	if s.ends_with("/"):
+		s = s.substr(0, s.length() - 1)
+	var parts := s.split("/")
+	if parts.is_empty():
+		return -1
+	return int(parts[parts.size() - 1])
+
+func _fetch_rest_fingerprint_evo_chain() -> Dictionary:
+	var d := await api.rest_get("/evolution-chain/?limit=%d&offset=0" % sample_size)
+	if d.has("_error"):
+		if String(d.get("_error")) == "rate_limited":
+			return {"status":"RATE_LIMIT", "calls": 1}
+		return {"status":"ERROR", "calls": 1}
+
+	var count := int(d.get("count", -1))
+	var results :Variant= d.get("results", [])
+	var sample_hash := _sha256(JSON.stringify(results))
+
+	return {
+		"status":"OK",
+		"calls": 1,
+		"fingerprint": {
+			"count": count,
+			"max_id": count,
+			"sample_hash": sample_hash
+		}
+	}
+
+func _sync_evolution_chain_rest(max_calls: int) -> Dictionary:
+	var calls := 0
+	var resource := "evolution_chain_rest"
+
+	_ensure_dir("%s/%s/details" % [cache_root, resource])
+
+	var manifest_path := _manifest_path(resource)
+	var state_path := _state_path(resource)
+	var index_path := _index_path(resource)
+
+	var local_manifest: Dictionary = _read_json(manifest_path)
+	var local_fp: Dictionary = (local_manifest.get("fingerprint", {}) as Dictionary)
+
+	var state: Dictionary = _read_json(state_path)
+	var complete: bool = bool(state.get("complete", false))
+	var next_id: int = int(state.get("offset", 1)) # ✅ offset = curseur id
+	if next_id <= 0:
+		next_id = 1
+
+	# 1) fingerprint remote (1 call)
+	if calls >= max_calls:
+		return {"status":"PARTIAL", "calls": calls}
+
+	var fp_res := await _fetch_rest_fingerprint_evo_chain()
+	calls += int(fp_res.get("calls", 0))
+	if fp_res.get("status", "") != "OK":
+		_save_state(state_path, "rest", next_id, 0, complete)
+		return {"status": fp_res.get("status", "ERROR"), "calls": calls}
+
+	var remote_fp: Dictionary = fp_res.get("fingerprint", {})
+	var remote_max: int = int(remote_fp.get("max_id", -1))
+	if remote_max <= 0:
+		_save_state(state_path, "rest", next_id, 0, false)
+		return {"status":"ERROR", "calls": calls}
+
+	# Si déjà à jour + complet
+	if complete and not local_fp.is_empty() and local_fp == remote_fp:
+		return {"status":"DONE", "calls": calls}
+
+	# 2) stratégie : si remote < local -> reset
+	var local_max: int = int(local_fp.get("max_id", 0))
+	if (not local_fp.is_empty()) and remote_max < local_max:
+		_wipe_resource(resource)
+		next_id = 1
+		complete = false
+		state = {}
+
+	# si increment (remote a augmenté)
+	if local_max > 0 and remote_max > local_max and next_id <= local_max:
+		next_id = local_max + 1
+		complete = false
+
+	# 3) boucle download dans le budget
+	var index_map: Dictionary = {}
+	if FileAccess.file_exists(index_path):
+		index_map = _read_json(index_path) # ok même si vide/ancien
+
+	while calls < max_calls and next_id <= remote_max:
+		emit_signal("offline_progress", "%s id=%d/%d" % [resource, next_id, remote_max], calls, _load_pending().size())
+
+		var detail := await api.rest_get("/evolution-chain/%d/" % next_id)
+		calls += 1
+
+		if detail.has("_error"):
+			var code := int(detail.get("_code", -1))
+			if code == 404:
+				print("[evolution_chain_rest] 404 skip id=", next_id)
+				next_id += 1
+				_save_state(state_path, "rest", next_id, 0, false)
+				continue
+			var e := String(detail.get("_error"))
+			if e == "rate_limited":
+				_save_state(state_path, "rest", next_id, 0, false)
+				_write_manifest(manifest_path, resource, remote_fp)
+				return {"status":"RATE_LIMIT", "calls": calls}
+
+			_save_state(state_path, "rest", next_id, 0, false)
+			_write_manifest(manifest_path, resource, remote_fp)
+			return {"status":"ERROR", "calls": calls}
+
+		# write file
+		var detail_path := "%s/%s/details/%d.json" % [cache_root, resource, next_id]
+		_write_json(detail_path, detail)
+
+		# index minimal (optionnel)
+		index_map[str(next_id)] = {"key": str(next_id)}
+
+		next_id += 1
+		_save_state(state_path, "rest", next_id, 0, false)
+
+		# yield UI
+		await get_tree().process_frame
+
+	# 4) fin / budget
+	_write_manifest(manifest_path, resource, remote_fp)
+	_write_json(index_path, index_map)
+
+	if next_id > remote_max:
+		_save_state(state_path, "rest", next_id, 0, true)
+		return {"status":"DONE", "calls": calls}
+
+	return {"status":"PARTIAL", "calls": calls}

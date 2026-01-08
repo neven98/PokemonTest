@@ -6,6 +6,7 @@ extends Control
 @onready var tabs: TabContainer = $Pages
 @onready var species_page: SpeciesPage = $Pages/SpeciesPage
 @onready var stats_page: StatsPage = $Pages/StatsPage
+@onready var evo_page: EvoPage = $Pages/EvoPage
 
 func _ready() -> void:
 	btn_back.pressed.connect(_go_back)
@@ -48,7 +49,7 @@ func _refresh() -> void:
 
 	species_page.render_species(species_id, pokemon_id, display_name)
 	stats_page.render_species(species_id, pokemon_id, display_name)
-
+	evo_page.render_species(species_id, pokemon_id)
 
 func _default_pokemon_id_for_species(species: Dictionary, fallback_species_id: int) -> int:
 	# PokeAPI: species.varieties -> is_default -> pokemon.url

@@ -81,9 +81,9 @@ func _on_import_finished_short(status: String, ins: int, upd: int, skp: int, err
 	lbl.text = "Import: %s | +%d ~%d =%d | err=%d%s" % [status, ins, upd, skp, err, extra]
 
 func _on_test_pressed() -> void:
-	PokeCacheSync.force_resync_one("evolution_chain")
-	await PokeCacheSync.update_offline_all(80) # ou ton bouton update
-
+	var res :Variant = await PokeCacheSync.ensure_chain_in_db(1)
+	print(res)
+	
 func _on_update_progress(msg: String, calls_used: int, remaining: int) -> void:
 	lbl.text = "%s\ncalls=%d | restants=%d" % [msg, calls_used, remaining]
 

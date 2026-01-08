@@ -52,6 +52,15 @@ theme_override_font_sizes/font_size = 32
 text = "START GAME"
 flat = true
 
+[node name="Pokedex" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "Pokedex"
+flat = true
+
 [node name="Option" type="Button" parent="TextureRect/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0, 0, 1)
@@ -59,15 +68,6 @@ theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
 theme_override_constants/outline_size = 10
 theme_override_font_sizes/font_size = 32
 text = "OPTION"
-flat = true
-
-[node name="Update" type="Button" parent="TextureRect/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
-theme_override_constants/outline_size = 10
-theme_override_font_sizes/font_size = 32
-text = "UPDATE"
 flat = true
 
 [node name="Exit" type="Button" parent="TextureRect/VBoxContainer"]
@@ -79,13 +79,22 @@ theme_override_font_sizes/font_size = 32
 text = "EXIT"
 flat = true
 
+[node name="Update" type="Button" parent="TextureRect/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0, 0, 1)
+theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 32
+text = "Dowload files"
+flat = true
+
 [node name="ImportDb" type="Button" parent="TextureRect/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0, 0, 1)
 theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
 theme_override_constants/outline_size = 10
 theme_override_font_sizes/font_size = 32
-text = "ImportDB"
+text = "Import Database"
 flat = true
 
 [node name="Test" type="Button" parent="TextureRect/VBoxContainer"]
@@ -95,15 +104,6 @@ theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
 theme_override_constants/outline_size = 10
 theme_override_font_sizes/font_size = 32
 text = "TEST DB"
-flat = true
-
-[node name="Pokedex" type="Button" parent="TextureRect/VBoxContainer"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0, 0, 0, 1)
-theme_override_colors/font_outline_color = Color(1, 1, 1, 1)
-theme_override_constants/outline_size = 10
-theme_override_font_sizes/font_size = 32
-text = "Pokedex"
 flat = true
 
 [node name="DlInfo" type="Label" parent="TextureRect"]
@@ -132,8 +132,8 @@ layout_mode = 0
 offset_right = 32.0
 offset_bottom = 20.0
 
-[connection signal="pressed" from="TextureRect/VBoxContainer/Update" to="." method="_on_update_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/Pokedex" to="." method="_on_pokedex_pressed"]
 [connection signal="pressed" from="TextureRect/VBoxContainer/Exit" to="." method="_on_exit_pressed"]
+[connection signal="pressed" from="TextureRect/VBoxContainer/Update" to="." method="_on_update_pressed"]
 [connection signal="pressed" from="TextureRect/VBoxContainer/ImportDb" to="." method="_on_import_db_pressed"]
 [connection signal="pressed" from="TextureRect/VBoxContainer/Test" to="." method="_on_test_pressed"]
-[connection signal="pressed" from="TextureRect/VBoxContainer/Pokedex" to="." method="_on_pokedex_pressed"]

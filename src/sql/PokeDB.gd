@@ -216,6 +216,57 @@ func _apply_migrations() -> void:
 
 		_set_schema_version(4)
 		v = 4
+	if v < 5:
+		# 1) Noeuds de la chaine : 1 ligne par species dans une chain
+		_exec("""
+		CREATE TABLE IF NOT EXISTS dex_evo_chain_species(
+			chain_id INTEGER NOT NULL,
+			species_id INTEGER NOT NULL,
+			species_name TEXT,
+			parent_species_id INTEGER,
+			is_baby INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY(chain_id, species_id)
+		);
+		""")
+		_exec("CREATE INDEX IF NOT EXISTS idx_evo_species_parent ON dex_evo_chain_species(chain_id, parent_species_id);")
+
+		# 2) Détails d'évolution (edge parent->child, plusieurs conditions possibles)
+		_exec("""
+		CREATE TABLE IF NOT EXISTS dex_evo_chain_detail(
+			chain_id INTEGER NOT NULL,
+			from_species_id INTEGER NOT NULL,
+			to_species_id INTEGER NOT NULL,
+			detail_index INTEGER NOT NULL,
+
+			trigger_id INTEGER,
+			min_level INTEGER,
+			item_id INTEGER,
+			held_item_id INTEGER,
+			known_move_id INTEGER,
+			known_move_type_id INTEGER,
+			location_id INTEGER,
+			min_affection INTEGER,
+			min_beauty INTEGER,
+			min_happiness INTEGER,
+			needs_overworld_rain INTEGER,
+			party_species_id INTEGER,
+			party_type_id INTEGER,
+			region_id INTEGER,
+			relative_physical_stats INTEGER,
+			time_of_day TEXT,
+			trade_species_id INTEGER,
+			turn_upside_down INTEGER,
+			gender INTEGER,
+
+			PRIMARY KEY(chain_id, from_species_id, to_species_id, detail_index)
+		);
+		""")
+		_exec("CREATE INDEX IF NOT EXISTS idx_evo_detail_from ON dex_evo_chain_detail(chain_id, from_species_id);")
+		_exec("CREATE INDEX IF NOT EXISTS idx_evo_detail_to   ON dex_evo_chain_detail(chain_id, to_species_id);")
+
+		_set_schema_version(5)
+		v = 5
+
 
 func upsert_pokedex_number(obj: Dictionary) -> Dictionary:
 	var pokedex_id := _i(obj.get("pokedex_id", null))
@@ -1005,3 +1056,7 @@ func import_one_resource_from_cache_v2(resource: String, yield_every: int = 300)
 
 	_exec("COMMIT;")
 	return {"inserted":inserted,"updated":updated,"skipped":skipped,"errors":errors,"total":total}
+
+func store_evolution_chain_rest(chain_json: Dictionary) -> Dictionary:
+	# Stocke le JSON complet tel quel dans entities sous une ressource dédiée
+	return upsert_entity("evolution_chain_rest", chain_json)
