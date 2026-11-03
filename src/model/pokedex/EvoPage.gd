@@ -29,7 +29,7 @@ func render_species(species_id: int, pokemon_id: int = 0) -> void:
 			lbl_debug.text = "Aucune donnée."
 		return
 
-	graph.render(evo, species_id)
+	graph.render(evo, species_id, pokemon_id)
 
 func _on_graph_pokemon_selected(pokemon_id: int, species_id: int) -> void:
 	emit_signal("pokemon_selected", pokemon_id, species_id)

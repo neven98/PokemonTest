@@ -22,6 +22,7 @@ const ART_FALLBACK := "res://Resource/texture/pokemon/0.png"
 var _pending_rerender := false
 var _evo := {}
 var _current_species := 0
+var _current_pokemon := 0
 var _pos := {}              # species_id -> Vector2 (top-left)
 var _depth_of := {}         # species_id -> int
 var _y_slot := {}           # species_id -> float
@@ -38,20 +39,40 @@ func clear() -> void:
 		c.queue_free()
 	queue_redraw()
 
-func render(evo: Dictionary, current_species_id: int) -> void:
+func render(evo: Dictionary, current_species_id: int, current_pokemon_id: int = 0) -> void:
 	clear()
 	_evo = evo
 	_current_species = current_species_id
+	_current_pokemon = current_pokemon_id
 
 	var root := int(evo.get("root_species_id", -1))
 	if root <= 0:
 		return
 
-	var nodes: Dictionary = evo.get("nodes", {})
+	var nodes: Dictionary = (evo.get("nodes", {}) as Dictionary).duplicate(true)
 	var children: Dictionary = evo.get("children", {})
 
 	# 1) layout (centres)
 	_layout_chain(root, children)
+
+	# Les formes sans lien d'évolution documenté occupent une rangée séparée.
+	var forms_y := 0.0
+	var forms_x := 0.0
+	for center: Vector2 in _center.values():
+		forms_y = maxf(forms_y, center.y + node_size + v_gap)
+	for sid: int in nodes.keys():
+		var species := PokeDb.get_entity("pokemon_species", sid)
+		for variety: Dictionary in species.get("varieties", []):
+			var pokemon: Dictionary = variety.get("pokemon", {})
+			var pid := str(pokemon.get("url", "")).trim_suffix("/").get_file().to_int()
+			if pid <= 0:
+				continue
+			if variety.get("is_default", false):
+				nodes[sid]["pokemon_id"] = pid
+				continue
+			nodes[-pid] = {"id": sid, "pokemon_id": pid, "name": pokemon.get("name", "")}
+			_center[-pid] = Vector2(forms_x, forms_y)
+			forms_x += node_size + h_gap
 
 	# 2) bounding rect (inclut le titre sous le node)
 	var title_h := 18.0
@@ -106,11 +127,10 @@ func render(evo: Dictionary, current_species_id: int) -> void:
 		var btn := EvoNodeButton.new()
 		btn.size = Vector2(node_size, node_size)
 		btn.position = pos
-		btn.species_id = sid
-		btn.pokemon_id = sid # placeholder pour l’instant
-		btn.set_selected(sid == _current_species)
-
-		var sp: Variant = nodes.get(sid, {})
+		var sp: Dictionary = nodes.get(sid, {})
+		btn.species_id = int(sp.get("id", sid))
+		btn.pokemon_id = int(sp.get("pokemon_id", sid))
+		btn.set_selected(btn.pokemon_id == _current_pokemon or (_current_pokemon <= 0 and sid == _current_species))
 		btn.set_title(String(sp.get("name", "")).capitalize())
 		btn.set_texture(_load_art(btn.pokemon_id))
 
@@ -422,4 +442,4 @@ func _rerender_next_frame() -> void:
 	_pending_rerender = false
 	if _evo.is_empty():
 		return
-	render(_evo, _current_species)
+	render(_evo, _current_species, _current_pokemon)

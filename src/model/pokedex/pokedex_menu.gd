@@ -259,19 +259,8 @@ func _preview_from_local_index(local_index: int) -> void:
 
 	var row := _page_rows[local_index]
 
-	if str(row.get("kind", "")) == "mega":
-		var sid := int(row.get("species_id", 0))
-		var pid := int(row.get("pokemon_id", 0))
-		var dn := str(row.get("name", ""))
-		if sid > 0:
-			_set_artwork(sid)
-	else:
-		var sid := int(row.get("id", 0))
-		var dn := str(row.get("name", ""))
-		if sid > 0:
-			_set_artwork(sid)
-		else :
-			_set_artwork(0)
+	var artwork_id := int(row.get("pokemon_id", 0)) if row.get("kind") == "mega" else int(row.get("id", 0))
+	_set_artwork(artwork_id)
 
 
 # =========================

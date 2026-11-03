@@ -25,7 +25,7 @@ func set_selected(v: bool) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var r :int= min(size.x, size.y) * 0.5
+	var r := minf(size.x, size.y) * 0.5
 	var c := size * 0.5
 
 	# fond cercle
@@ -38,11 +38,11 @@ func _draw() -> void:
 		outline = Color(1, 0.9, 0.2, 0.9)
 	draw_arc(c, r - 2.0, 0, TAU, 64, outline, 4.0)
 
-	# image (clippée “à la main” en cercle simple via draw_texture_rect + masque soft)
 	if _tex:
-		var inset := 8.0
-		var rect := Rect2(Vector2(inset, inset), size - Vector2(inset*2, inset*2))
-		draw_texture_rect(_tex, rect, true)
+		var side := maxf(0.0, (r - 4.0) * sqrt(2.0))
+		var dimensions := _tex.get_size()
+		var image_size := dimensions * (side / maxf(dimensions.x, dimensions.y))
+		draw_texture_rect(_tex, Rect2(c - image_size * 0.5, image_size), false)
 
 	# nom dessous (petit)
 	if _title != "":

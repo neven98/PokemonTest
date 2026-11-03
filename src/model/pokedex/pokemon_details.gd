@@ -12,6 +12,7 @@ func _ready() -> void:
 	btn_back.pressed.connect(_go_back)
 	btn_prev.pressed.connect(_go_prev)
 	btn_next.pressed.connect(_go_next)
+	evo_page.pokemon_selected.connect(_show_evolution)
 	_refresh()
 
 func _go_back() -> void:
@@ -47,6 +48,11 @@ func _refresh() -> void:
 	if pokemon_id <= 0:
 		pokemon_id = _default_pokemon_id_for_species(species, species_id)
 
+	_show_evolution(pokemon_id, species_id, display_name)
+
+func _show_evolution(pokemon_id: int, species_id: int, display_name: String = "") -> void:
+	if display_name.is_empty():
+		display_name = str(PokeDb.get_entity("pokemon", pokemon_id).get("name", "")).capitalize()
 	species_page.render_species(species_id, pokemon_id, display_name)
 	stats_page.render_species(species_id, pokemon_id, display_name)
 	evo_page.render_species(species_id, pokemon_id)
