@@ -21,6 +21,7 @@ const ART_DIR := "res://Resource/texture/pokemon/other/official-artwork/"
 const ART_FALLBACK := "res://Resource/texture/pokemon/0.png"
 var _pending_rerender := false
 var _evo := {}
+var _source_evo := {}
 var _current_species := 0
 var _current_pokemon := 0
 var _pos := {}              # species_id -> Vector2 (top-left)
@@ -41,7 +42,8 @@ func clear() -> void:
 
 func render(evo: Dictionary, current_species_id: int, current_pokemon_id: int = 0) -> void:
 	clear()
-	_evo = evo
+	_source_evo = evo
+	_evo = evo.duplicate(true)
 	_current_species = current_species_id
 	_current_pokemon = current_pokemon_id
 
@@ -50,7 +52,7 @@ func render(evo: Dictionary, current_species_id: int, current_pokemon_id: int = 
 		return
 
 	var nodes: Dictionary = (evo.get("nodes", {}) as Dictionary).duplicate(true)
-	var children: Dictionary = evo.get("children", {})
+	var children: Dictionary = _evo.get("children", {})
 
 	# 1) layout (centres)
 	_layout_chain(root, children)
@@ -73,6 +75,20 @@ func render(evo: Dictionary, current_species_id: int, current_pokemon_id: int = 
 			nodes[-pid] = {"id": sid, "pokemon_id": pid, "name": pokemon.get("name", "")}
 			_center[-pid] = Vector2(forms_x, forms_y)
 			forms_x += node_size + h_gap
+
+	# Le cache GraphQL peut omettre les variétés de cette famille.
+	if _center.has(19) and _center.has(20):
+		var rattata: Vector2 = _center[19]
+		var raticate: Vector2 = _center[20]
+		nodes[-10091] = {"id": 19, "pokemon_id": 10091, "name": "Rattata d’Alola"}
+		nodes[-10092] = {"id": 20, "pokemon_id": 10092, "name": "Rattatac d’Alola"}
+		_center[-10091] = Vector2(rattata.x, forms_y + node_size + v_gap)
+		_center[-10092] = Vector2(raticate.x, forms_y + node_size + v_gap)
+		children[-10091] = [-10092]
+		var details: Dictionary = _evo.get("edge_details", {})
+		details["19->20"] = [{"min_level": 20}]
+		details["-10091->-10092"] = [{"min_level": 20, "time_of_day": "night"}]
+		_evo["edge_details"] = details
 
 	# 2) bounding rect (inclut le titre sous le node)
 	var title_h := 18.0
@@ -442,4 +458,4 @@ func _rerender_next_frame() -> void:
 	_pending_rerender = false
 	if _evo.is_empty():
 		return
-	render(_evo, _current_species, _current_pokemon)
+	render(_source_evo, _current_species, _current_pokemon)
