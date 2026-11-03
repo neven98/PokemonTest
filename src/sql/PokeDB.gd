@@ -134,16 +134,16 @@ func _apply_migrations() -> void:
 	""")
 
 	_exec("CREATE INDEX IF NOT EXISTS idx_entities_resource_name ON entities(resource, name);")
-	_exec("CREATE INDEX IF NOT EXISTS idx_entities_resource_hash ON entities(resource, hash);")
 
 	# Migration v1 -> v2 : ajouter colonne hash si elle n'existe pas
 	if v < 2:
 		if not _column_exists("entities", "hash"):
 			_exec("ALTER TABLE entities ADD COLUMN hash TEXT;")
-		_exec("CREATE INDEX IF NOT EXISTS idx_entities_resource_hash ON entities(resource, hash);")
 
 		_set_schema_version(2)
 		v = 2
+
+	_exec("CREATE INDEX IF NOT EXISTS idx_entities_resource_hash ON entities(resource, hash);")
 
 	# --- v3 : import_state + tables relations Pokemon ---
 	if v < 3:

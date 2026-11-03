@@ -11,6 +11,7 @@ const ENDPOINT := "https://graphql.pokeapi.co/v1beta2"
 var _last_call_ms := 0
 
 func _ready() -> void:
+	http.timeout = rest_timeout_sec
 	add_child(http)
 
 func gql(query: String, variables: Dictionary = {}) -> Dictionary:
